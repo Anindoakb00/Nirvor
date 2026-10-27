@@ -1,32 +1,154 @@
 {
   "drugs": [
     {
-      "id": "drug_001",
+      "id": "BD_DIMS_001",
       "brand_name": "Napa Extend",
       "generic_name": "Paracetamol 665mg",
-      "category": "Analgesic / Antipyretic",
-      "embedding_vector": [0.125, 0.841, 0.332, 0.509]
+      "manufacturer": "Beximco Pharmaceuticals Ltd.",
+      "category": "Analgesic & Antipyretic",
+      "bangla_phonetic_aliases": ["নাপা এক্সটেন্ড", "napa extend", "napa 665", "নাপা"],
+      "prior_probability": 0.18,
+      "half_life_hours": 2.5,
+      "nephrotoxic_risk": 0.15,
+      "hepatotoxic_threshold_mg": 4000
     },
     {
-      "id": "drug_002",
+      "id": "BD_DIMS_002",
       "brand_name": "Sergel 20",
-      "generic_name": "Esomeprazole 20mg",
-      "category": "Proton Pump Inhibitor",
-      "embedding_vector": [0.412, 0.223, 0.789, 0.104]
+      "generic_name": "Esomeprazole Magnesium Trihydrate 20mg",
+      "manufacturer": "Healthcare Pharmaceuticals Ltd.",
+      "category": "Proton Pump Inhibitor (PPI)",
+      "bangla_phonetic_aliases": ["সার্জেল ২০", "sergel", "sarjel", "সারজেল"],
+      "prior_probability": 0.16,
+      "half_life_hours": 1.5,
+      "nephrotoxic_risk": 0.10,
+      "hepatotoxic_threshold_mg": 240
     },
     {
-      "id": "drug_003",
+      "id": "BD_DIMS_003",
+      "brand_name": "Seclo 20",
+      "generic_name": "Omeprazole 20mg",
+      "manufacturer": "Square Pharmaceuticals PLC",
+      "category": "Proton Pump Inhibitor (PPI)",
+      "bangla_phonetic_aliases": ["সেকলো ২০", "seclo", "seklo", "সেকলো"],
+      "prior_probability": 0.14,
+      "half_life_hours": 1.0,
+      "nephrotoxic_risk": 0.10,
+      "hepatotoxic_threshold_mg": 200
+    },
+    {
+      "id": "BD_DIMS_004",
+      "brand_name": "Maxpro 40",
+      "generic_name": "Esomeprazole 40mg",
+      "manufacturer": "Renata Limited",
+      "category": "Proton Pump Inhibitor (PPI)",
+      "bangla_phonetic_aliases": ["ম্যাক্সপ্রো ৪০", "maxpro", "ম্যাক্সপ্রো"],
+      "prior_probability": 0.10,
+      "half_life_hours": 1.5,
+      "nephrotoxic_risk": 0.12,
+      "hepatotoxic_threshold_mg": 240
+    },
+    {
+      "id": "BD_DIMS_005",
       "brand_name": "Monas 10",
       "generic_name": "Montelukast Sodium 10mg",
+      "manufacturer": "ACME Laboratories Ltd.",
       "category": "Leukotriene Receptor Antagonist",
-      "embedding_vector": [0.305, 0.512, 0.198, 0.741]
+      "bangla_phonetic_aliases": ["মোনাস ১০", "monas", "মনাস"],
+      "prior_probability": 0.09,
+      "half_life_hours": 4.5,
+      "nephrotoxic_risk": 0.05,
+      "hepatotoxic_threshold_mg": 100
     },
     {
-      "id": "drug_004",
-      "brand_name": "Maxpro 40",
-      "generic_name": "Esomeprazole Magnesium 40mg",
-      "category": "Proton Pump Inhibitor",
-      "embedding_vector": [0.419, 0.231, 0.775, 0.112]
+      "id": "BD_DIMS_006",
+      "brand_name": "Bizoran 5/20",
+      "generic_name": "Amlodipine 5mg + Olmesartan Medoxomil 20mg",
+      "manufacturer": "Beximco Pharmaceuticals Ltd.",
+      "category": "Antihypertensive (CCB + ARB)",
+      "bangla_phonetic_aliases": ["বিজোরান", "bizoran", "bijoran", "প্রেসারের ওষুধ বিজোরান"],
+      "prior_probability": 0.08,
+      "half_life_hours": 35.0,
+      "nephrotoxic_risk": 0.35,
+      "hepatotoxic_threshold_mg": 80
+    },
+    {
+      "id": "BD_DIMS_007",
+      "brand_name": "Rolac 10",
+      "generic_name": "Ketorolac Tromethamine 10mg",
+      "manufacturer": "Renata Limited",
+      "category": "NSAID (Non-Steroidal Anti-Inflammatory)",
+      "bangla_phonetic_aliases": ["রোলাক ১০", "rolac", "ব্যাথার ওষুধ রোলাক"],
+      "prior_probability": 0.07,
+      "half_life_hours": 5.5,
+      "nephrotoxic_risk": 0.85,
+      "hepatotoxic_threshold_mg": 40
+    },
+    {
+      "id": "BD_DIMS_008",
+      "brand_name": "Flexi 100",
+      "generic_name": "Aceclofenac 100mg",
+      "manufacturer": "Square Pharmaceuticals PLC",
+      "category": "NSAID (Non-Steroidal Anti-Inflammatory)",
+      "bangla_phonetic_aliases": ["ফ্লেক্সি ১০০", "flexi", "flekxi", "ফ্লেক্সি"],
+      "prior_probability": 0.08,
+      "half_life_hours": 4.0,
+      "nephrotoxic_risk": 0.75,
+      "hepatotoxic_threshold_mg": 200
+    },
+    {
+      "id": "BD_DIMS_009",
+      "brand_name": "Zimax 500",
+      "generic_name": "Azithromycin 500mg",
+      "manufacturer": "Square Pharmaceuticals PLC",
+      "category": "Macrolide Antibiotic",
+      "bangla_phonetic_aliases": ["জিম্যাক্স ৫০০", "zimax", "jimax", "এন্টিবায়োটিক জিম্যাক্স"],
+      "prior_probability": 0.06,
+      "half_life_hours": 68.0,
+      "nephrotoxic_risk": 0.20,
+      "hepatotoxic_threshold_mg": 2000
+    },
+    {
+      "id": "BD_DIMS_010",
+      "brand_name": "Cef-3 200",
+      "generic_name": "Cefixime Trihydrate 200mg",
+      "manufacturer": "Square Pharmaceuticals PLC",
+      "category": "3rd Gen Cephalosporin Antibiotic",
+      "bangla_phonetic_aliases": ["সেফ-৩", "cef 3", "sef 3", "সেফ থ্রি"],
+      "prior_probability": 0.04,
+      "half_life_hours": 3.5,
+      "nephrotoxic_risk": 0.40,
+      "hepatotoxic_threshold_mg": 1200
+    }
+  ],
+  "dialect_symptom_lexicon": [
+    {
+      "dialect_region": "Chittagonian",
+      "dialect_phrase": "আঁর পেটত ব্যথা গরের আর বুক জ্বালাপোড়া গরের",
+      "phonetic_roman": "ar petot betha gorer ar buk jalapora gorer",
+      "clinical_term": "Epigastric Pain & Pyrosis (Acid Peptic Disease / NSAID Gastritis)",
+      "icd10_code": "R10.13 / K21.9"
+    },
+    {
+      "dialect_region": "Chittagonian",
+      "dialect_phrase": "মাথা ঘুরায় আর চোখ আন্ধার দেখে",
+      "phonetic_roman": "matha ghuray ar chokh andhar dekhe",
+      "clinical_term": "Vertigo & Presyncope / Orthostatic Hypotension",
+      "icd10_code": "R42 / R55"
+    },
+    {
+      "dialect_region": "Sylheti",
+      "dialect_phrase": "আমার বুকে চিনচিনানি ব্যথা আর দম নিতে কষ্ট অয়",
+      "phonetic_roman": "amar buke chinchinani betha ar dom nite koshto oy",
+      "clinical_term": "Precordial Chest Tightness & Dyspnea",
+      "icd10_code": "R07.9 / R06.02"
+    },
+    {
+      "dialect_region": "Noakhali / Standard Bangla",
+      "dialect_phrase": "শরীর খুব জ্বর আর গিরায় গিরায় ব্যথা",
+      "phonetic_roman": "shorir khub jor ar giray giray betha",
+      "clinical_term": "High-Grade Pyrexia & Polyarthralgia (Suspected Viral / Dengue)",
+      "icd10_code": "R50.9 / M25.50"
     }
   ]
 }
