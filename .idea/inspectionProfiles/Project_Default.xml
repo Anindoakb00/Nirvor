@@ -1,0 +1,50 @@
+<component name="InspectionProjectProfileManager">
+  <profile version="1.0">
+    <option name="myName" value="Project Default" />
+    <inspection_tool class="Eslint" enabled="true" level="WARNING" enabled_by_default="true" />
+    <inspection_tool class="PyPackageRequirementsInspection" enabled="true" level="WARNING" enabled_by_default="true">
+      <option name="ignoredPackages">
+        <list>
+          <option value="atomicwrites" />
+          <option value="attrs" />
+          <option value="cachetools" />
+          <option value="certifi" />
+          <option value="charset-normalizer" />
+          <option value="colorama" />
+          <option value="configparser" />
+          <option value="crayons" />
+          <option value="google-auth" />
+          <option value="google-auth-oauthlib" />
+          <option value="gspread" />
+          <option value="idna" />
+          <option value="iniconfig" />
+          <option value="numpy" />
+          <option value="oauthlib" />
+          <option value="packaging" />
+          <option value="pandas" />
+          <option value="pluggy" />
+          <option value="prompt-toolkit" />
+          <option value="py" />
+          <option value="pyasn1" />
+          <option value="pyasn1-modules" />
+          <option value="pyparsing" />
+          <option value="pyperclip" />
+          <option value="pytest" />
+          <option value="python-dateutil" />
+          <option value="pytz" />
+          <option value="PyWit" />
+          <option value="requests" />
+          <option value="requests-oauthlib" />
+          <option value="rsa" />
+          <option value="selenium" />
+          <option value="six" />
+          <option value="toml" />
+          <option value="urllib3" />
+          <option value="wcwidth" />
+          <option value="webdriver-manager" />
+          <option value="wit" />
+        </list>
+      </option>
+    </inspection_tool>
+  </profile>
+</component>

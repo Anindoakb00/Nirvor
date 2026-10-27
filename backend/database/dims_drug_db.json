@@ -1,0 +1,32 @@
+{
+  "drugs": [
+    {
+      "id": "drug_001",
+      "brand_name": "Napa Extend",
+      "generic_name": "Paracetamol 665mg",
+      "category": "Analgesic / Antipyretic",
+      "embedding_vector": [0.125, 0.841, 0.332, 0.509]
+    },
+    {
+      "id": "drug_002",
+      "brand_name": "Sergel 20",
+      "generic_name": "Esomeprazole 20mg",
+      "category": "Proton Pump Inhibitor",
+      "embedding_vector": [0.412, 0.223, 0.789, 0.104]
+    },
+    {
+      "id": "drug_003",
+      "brand_name": "Monas 10",
+      "generic_name": "Montelukast Sodium 10mg",
+      "category": "Leukotriene Receptor Antagonist",
+      "embedding_vector": [0.305, 0.512, 0.198, 0.741]
+    },
+    {
+      "id": "drug_004",
+      "brand_name": "Maxpro 40",
+      "generic_name": "Esomeprazole Magnesium 40mg",
+      "category": "Proton Pump Inhibitor",
+      "embedding_vector": [0.419, 0.231, 0.775, 0.112]
+    }
+  ]
+}
