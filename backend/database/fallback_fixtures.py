@@ -2,7 +2,7 @@
 from typing import Any, Dict
 import cv2
 import numpy as np
-from core.schemas import (
+from models.schemas import (
     MedicationItem,
     PatientVitals,
     PolypharmacyIntervention,
