@@ -8,7 +8,7 @@ import httpx
 import numpy as np
 from openai import AsyncOpenAI
 
-from services.prompts import (
+from core.prompts import (
     SYSTEM_CLINICAL_JSON,
     build_entropy_triage_prompt,
     build_ocr_extraction_prompt,
