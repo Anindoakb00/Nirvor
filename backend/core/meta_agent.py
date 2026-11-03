@@ -17,12 +17,12 @@ from core.prompts import (
 from database.fallback_fixtures import (
     DEFAULT_CHITTAGONIAN_TRANSCRIPT,
     DEFAULT_DOSAGE_CARD_URL,
-    DEFAULT_POLYPHARMACY_FIXTURE,
     DEFAULT_PRESCRIPTION_FIXTURE,
     DEFAULT_TRIAGE_QUESTION_BN,
     build_opencv_fallback_masks,
 )
 from config.settings import AIConfig
+from core.polypharmacy import PolypharmacyGraph
 
 load_dotenv()
 
@@ -115,44 +115,11 @@ async def generate_entropy_triage_question(
 async def escalate_polypharmacy_wonder(
     pk_summary: Dict[str, Any], patient_vitals: Dict[str, Any]
 ) -> Dict[str, Any]:
-  """Escalates critical pharmacokinetic toxicity to Meta's Muse Wonder agent."""
-  prompt = build_wonder_escalation_prompt(pk_summary, patient_vitals)
-
-  if _is_configured(AIConfig.META_API_KEY):
-    try:
-      res = await meta_client.chat.completions.create(
-          model=AIConfig.META_WONDER_MODEL,
-          messages=[
-              {"role": "system", "content": SYSTEM_CLINICAL_JSON},
-              {"role": "user", "content": prompt},
-          ],
-          temperature=0.1,
-      )
-      parsed = _parse_json(res.choices[0].message.content)
-      parsed["provider_used"] = "meta_api"
-      return parsed
-    except Exception:
-      pass
-
-  if _is_configured(AIConfig.BASETEN_API_KEY):
-    try:
-      res = await baseten_client.chat.completions.create(
-          model=AIConfig.BASETEN_MODEL,
-          messages=[
-              {"role": "system", "content": SYSTEM_CLINICAL_JSON},
-              {"role": "user", "content": prompt},
-          ],
-          temperature=0.1,
-      )
-      parsed = _parse_json(res.choices[0].message.content)
-      parsed["provider_used"] = "baseten_api"
-      return parsed
-    except Exception:
-      pass
-
-  fixture = DEFAULT_POLYPHARMACY_FIXTURE.model_dump()
-  fixture["provider_used"] = "fallback_fixture"
-  return fixture
+  """Escalates critical pharmacokinetic toxicity by querying the deterministic PolypharmacyGraph."""
+  graph = PolypharmacyGraph()
+  medications = pk_summary.get("medications", [])
+  result = graph.check_interaction(medications)
+  return result
 
 
 async def segment_medical_scan_sam3(

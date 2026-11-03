@@ -4,6 +4,8 @@ import os
 import re
 from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
+from supabase import create_client, Client
+from config.settings import AIConfig
 
 
 class ClinicalMathEngine:
@@ -116,6 +118,11 @@ class ClinicalMathEngine:
     self.drug_db = raw_db.get("drugs", [])
     self.dialect_lexicon = raw_db.get("dialect_symptom_lexicon", [])
 
+    # Initialize Supabase if configured
+    self.supabase: Optional[Client] = None
+    if AIConfig.SUPABASE_URL and AIConfig.SUPABASE_KEY:
+        self.supabase = create_client(AIConfig.SUPABASE_URL, AIConfig.SUPABASE_KEY)
+
     # Pre-compute R^512 embeddings for all verified DIMS drugs and dialect idioms
     for drug in self.drug_db:
       brand_clean = self._clean_clinical_title(drug["brand_name"])
@@ -130,11 +137,28 @@ class ClinicalMathEngine:
           self.to_phonetic_skeleton(alias_blob)
       )
 
+    records_to_insert = []
     for item in self.dialect_lexicon:
       combined_dialect = f"{item['dialect_phrase']} {item['phonetic_roman']}"
       item["_vec"] = self.text_to_embedding(
           self.to_phonetic_skeleton(combined_dialect)
       )
+
+      # Upsert dialect symptom to Supabase if available
+      if self.supabase:
+          records_to_insert.append({
+              "dialect_phrase": item["dialect_phrase"],
+              "clinical_term": item["clinical_term"],
+              "icd10_code": item["icd10_code"],
+              "dialect_region": item["dialect_region"],
+              "embedding": item["_vec"].tolist()
+          })
+
+    if self.supabase and records_to_insert:
+        try:
+            self.supabase.table("symptoms").upsert(records_to_insert, on_conflict="dialect_phrase").execute()
+        except Exception as e:
+            print(f"[Supabase] Warning: could not push symptom vectors: {e}")
 
   @staticmethod
   def _clean_clinical_title(text: str) -> str:
@@ -383,23 +407,36 @@ class ClinicalMathEngine:
   ) -> List[Dict[str, Any]]:
     """Retrieves the mathematically closest ICD-10 clinical symptoms from a noisy
 
-    Chittagonian/Sylheti transcript using Phonetic Skeleton Cosine Similarity.
+    Chittagonian/Sylheti transcript using Phonetic Skeleton Cosine Similarity via pgvector.
     """
     if not raw_transcript:
       return []
     q_vec = self.text_to_embedding(self.to_phonetic_skeleton(raw_transcript))
-    scored = []
-    for item in self.dialect_lexicon:
-      sim = self.compute_cosine_similarity(q_vec, item["_vec"])
-      scored.append({
-          "dialect_region": item["dialect_region"],
-          "matched_idiom": item["dialect_phrase"],
-          "clinical_translation": item["clinical_term"],
-          "icd10_code": item["icd10_code"],
-          "phonetic_cosine_similarity": round(sim, 4),
-      })
-    scored.sort(key=lambda x: x["phonetic_cosine_similarity"], reverse=True)
-    return scored[:top_k]
+
+    if self.supabase:
+        try:
+            # Requires an RPC function to perform pgvector distance querying (e.g. cosine distance)
+            res = self.supabase.rpc("match_symptoms", {
+                "query_embedding": q_vec.tolist(),
+                "match_threshold": 0.0,
+                "match_count": top_k
+            }).execute()
+
+            if res.data:
+                scored = []
+                for item in res.data:
+                    scored.append({
+                        "dialect_region": item.get("dialect_region", ""),
+                        "matched_idiom": item.get("dialect_phrase", ""),
+                        "clinical_translation": item.get("clinical_term", ""),
+                        "icd10_code": item.get("icd10_code", ""),
+                        "phonetic_cosine_similarity": round(1 - item.get("similarity", 0.0), 4),
+                    })
+                return scored
+        except Exception as e:
+            print(f"[Supabase] Warning: pgvector retrieval failed: {e}")
+
+    return []
 
   @staticmethod
   def calculate_cardiothoracic_ratio(

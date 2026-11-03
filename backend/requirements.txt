@@ -13,4 +13,5 @@ modal
 pytest
 pytest-asyncio
 openai
-
+supabase
+networkx
