@@ -37,8 +37,10 @@ def modal_remote_cv_deskew(image_bytes: bytes) -> Dict[str, Any]:
       "enhanced_base64": base64.b64encode(buffer).decode("utf-8"),
   }
 
-@modal_app.function()
+@modal_app.function(image=modal_cv_image, timeout=300)
 @modal.asgi_app()
 def fastapi_app():
-    from backend.main import app
+    from main import app
     return app
+
+app = modal_app
