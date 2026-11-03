@@ -23,3 +23,4 @@ class AIConfig:
     META_SAM_MODEL = os.getenv("META_SAM_MODEL", "sam-3.1")
 
     USE_MODAL_CLOUD_CV = os.getenv("USE_MODAL_CLOUD_CV", "false").lower() == "true"
+    MODAL_TOKEN_EXISTS = os.path.exists(os.path.expanduser("~/.modal.toml"))

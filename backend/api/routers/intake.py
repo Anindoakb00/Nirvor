@@ -15,7 +15,7 @@ def system_status():
     return {
         "meta_configured": bool(AIConfig.META_API_KEY and AIConfig.META_API_KEY != "your_key_here" and AIConfig.META_API_KEY != "unconfigured"),
         "baseten_configured": bool(AIConfig.BASETEN_API_KEY and AIConfig.BASETEN_API_KEY != "your_key_here" and AIConfig.BASETEN_API_KEY != "unconfigured"),
-        "modal_configured": AIConfig.USE_MODAL_CLOUD_CV,
+        "modal_configured": AIConfig.USE_MODAL_CLOUD_CV or AIConfig.MODAL_TOKEN_EXISTS,
         "version": "0.0.3"
     }
 
