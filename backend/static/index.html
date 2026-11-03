@@ -12,6 +12,8 @@
         .badge-red { background-color: rgba(255, 64, 64, 0.2); color: #ff4040; border: 1px solid #ff4040; }
         button { background-color: #333; color: white; border: 1px solid #555; padding: 10px; cursor: pointer; }
         button:hover { background-color: #555; }
+        .input-group { margin-bottom: 15px; display: block; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -21,9 +23,18 @@
     </div>
     <div class="panel">
         <form id="intake-form">
-            <input type="file" name="prescription" id="prescription" accept="image/*">
-            <input type="file" name="audio" id="audio" accept="audio/*">
-            <input type="file" name="xray_scan" id="xray_scan" accept="image/*">
+            <div class="input-group">
+                <label for="prescription">1. Upload Prescription (Image)</label>
+                <input type="file" name="prescription" id="prescription" accept="image/*">
+            </div>
+            <div class="input-group">
+                <label for="audio">2. Upload Voice Audio (WAV/MP3)</label>
+                <input type="file" name="audio" id="audio" accept="audio/*">
+            </div>
+            <div class="input-group">
+                <label for="xray_scan">3. Optional: Patient Data (JSON)</label>
+                <input type="file" name="xray_scan" id="xray_scan" accept="image/*">
+            </div>
             <button type="button" onclick="submitForm(false)">Run Neuro-Symbolic Intake</button>
             <button type="button" onclick="submitForm(true)">⚡ Instant Judge Demo (1-Click Full Pipeline)</button>
         </form>
