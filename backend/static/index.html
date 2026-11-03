@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nirvor Dashboard</title>
+    <style>
+        body { background-color: #000000; color: #ffffff; font-family: monospace; }
+        .panel { background-color: #0a0a0a; border: 1px solid #222222; padding: 10px; margin: 10px; }
+        .badge { padding: 5px; border-radius: 3px; }
+        .badge-green { background-color: rgba(0, 255, 128, 0.2); color: #00ff80; border: 1px solid #00ff80; }
+        .badge-red { background-color: rgba(255, 64, 64, 0.2); color: #ff4040; border: 1px solid #ff4040; }
+        button { background-color: #333; color: white; border: 1px solid #555; padding: 10px; cursor: pointer; }
+        button:hover { background-color: #555; }
+    </style>
+</head>
+<body>
+    <div class="panel">
+        <h1>Nirvor Dashboard - v0.0.3</h1>
+        <div id="system-status">Loading status...</div>
+    </div>
+    <div class="panel">
+        <form id="intake-form">
+            <input type="file" name="prescription" id="prescription" accept="image/*">
+            <input type="file" name="audio" id="audio" accept="audio/*">
+            <input type="file" name="xray_scan" id="xray_scan" accept="image/*">
+            <button type="button" onclick="submitForm(false)">Run Neuro-Symbolic Intake</button>
+            <button type="button" onclick="submitForm(true)">⚡ Instant Judge Demo (1-Click Full Pipeline)</button>
+        </form>
+    </div>
+    <div class="panel" id="results" style="display:none;">
+        <h2>Results</h2>
+        <pre id="json-output"></pre>
+        <img id="deskewed-img" style="max-width: 100%; display: none;">
+    </div>
+    <script>
+        fetch('/api/v2/system-status')
+            .then(r => r.json())
+            .then(data => {
+                const s = document.getElementById('system-status');
+                s.innerHTML = `Meta: <span class="badge ${data.meta_configured ? 'badge-green' : 'badge-red'}">${data.meta_configured}</span> |
+                               Baseten: <span class="badge ${data.baseten_configured ? 'badge-green' : 'badge-red'}">${data.baseten_configured}</span> |
+                               Modal: <span class="badge ${data.modal_configured ? 'badge-green' : 'badge-red'}">${data.modal_configured}</span>`;
+            });
+
+        async function submitForm(demoMode) {
+            const formData = new FormData();
+            if (demoMode) {
+                formData.append('demo_mode', 'true');
+            } else {
+                const p = document.getElementById('prescription').files[0];
+                if (p) formData.append('prescription', p);
+                const a = document.getElementById('audio').files[0];
+                if (a) formData.append('audio', a);
+                const x = document.getElementById('xray_scan').files[0];
+                if (x) formData.append('xray_scan', x);
+            }
+
+            document.getElementById('results').style.display = 'block';
+            document.getElementById('json-output').innerText = "Processing...";
+
+            const res = await fetch('/api/v2/intake-pipeline', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await res.json();
+            document.getElementById('json-output').innerText = JSON.stringify(data, null, 2);
+            if (data.cv_telemetry && data.cv_telemetry.deskewed_image_data_uri) {
+                const img = document.getElementById('deskewed-img');
+                img.src = data.cv_telemetry.deskewed_image_data_uri;
+                img.style.display = 'block';
+            }
+        }
+    </script>
+</body>
+</html>

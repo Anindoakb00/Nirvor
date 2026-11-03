@@ -11,6 +11,7 @@ The orchestrator manages how different AI models collaborate and pass states/out
 1. **CV Processing (Synchronous)**: Extracts and enhances the prescription image for optimal OCR.
 2. **Concurrent Task Execution (Asynchronous)**: Analyzes voice notes for regional dialect/symptoms, while simultaneously segmenting diagnostic scans (like X-rays).
 3. **Data Fusion & Mathematical Grounding**: Merges OCR output with voice-aligned transcription to perform bayesian entity matching against a comprehensive clinical database.
+4. **Agentic Sparks & Guardrails**: Evaluates grounded outputs. Evaluates clinical coherence and contradicts between symptoms and matched medications, creates dosage cards, checks for polypharmacy toxicity and dynamically asks triage questions if Shannon entropy is high.
 
 ## 3. System Architecture & Folder Structure
 

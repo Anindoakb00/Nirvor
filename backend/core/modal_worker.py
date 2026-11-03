@@ -36,3 +36,9 @@ def modal_remote_cv_deskew(image_bytes: bytes) -> Dict[str, Any]:
       "width": int(img.shape[1]),
       "enhanced_base64": base64.b64encode(buffer).decode("utf-8"),
   }
+
+@modal_app.function()
+@modal.asgi_app()
+def fastapi_app():
+    from backend.main import app
+    return app

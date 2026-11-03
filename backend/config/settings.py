@@ -21,3 +21,5 @@ class AIConfig:
     META_VOICE_MODEL = os.getenv("META_VOICE_MODEL", "muse-voice-transcribe")
     META_IMAGE_MODEL = os.getenv("META_IMAGE_MODEL", "muse-image-1.0")
     META_SAM_MODEL = os.getenv("META_SAM_MODEL", "sam-3.1")
+
+    USE_MODAL_CLOUD_CV = os.getenv("USE_MODAL_CLOUD_CV", "false").lower() == "true"
