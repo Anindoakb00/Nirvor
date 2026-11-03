@@ -21,7 +21,7 @@ class IntakeOrchestrator:
 
     async def process_intake(
         self,
-        prescription_bytes: bytes,
+        prescription_bytes: Optional[bytes] = None,
         audio_bytes: Optional[bytes] = None,
         audio_filename: Optional[str] = None,
         xray_bytes: Optional[bytes] = None,
@@ -29,39 +29,43 @@ class IntakeOrchestrator:
         t0 = time.perf_counter()
         agent_execution_trace = []
 
+        cv_telemetry = {}
+        base64_data_uri = ""
+
         # b) Read prescription bytes and run ClinicalCVPreprocessor
-        cv_t0 = time.perf_counter()
-        if AIConfig.USE_MODAL_CLOUD_CV:
-            try:
-                from core.modal_worker import modal_remote_cv_deskew
-                cv_result = modal_remote_cv_deskew.remote(prescription_bytes)
-                base64_data_uri = f"data:image/jpeg;base64,{cv_result.get('enhanced_base64', '')}"
-                cv_telemetry = {
-                    "worker": cv_result.get("worker", "Modal Serverless Cloud"),
-                    "deskewed_image_data_uri": base64_data_uri
-                }
-                provider_used = "modal_cloud"
-            except Exception as e:
-                print(f"Modal CV fallback to local: {e}")
+        if prescription_bytes:
+            cv_t0 = time.perf_counter()
+            if AIConfig.USE_MODAL_CLOUD_CV:
+                try:
+                    from core.modal_worker import modal_remote_cv_deskew
+                    cv_result = modal_remote_cv_deskew.remote(prescription_bytes)
+                    base64_data_uri = f"data:image/jpeg;base64,{cv_result.get('enhanced_base64', '')}"
+                    cv_telemetry = {
+                        "worker": cv_result.get("worker", "Modal Serverless Cloud"),
+                        "deskewed_image_data_uri": base64_data_uri
+                    }
+                    provider_used = "modal_cloud"
+                except Exception as e:
+                    print(f"Modal CV fallback to local: {e}")
+                    cv_result = ClinicalCVPreprocessor.process_prescription_image(prescription_bytes)
+                    base64_data_uri = cv_result["base64_data_uri"]
+                    cv_telemetry = cv_result["telemetry"]
+                    cv_telemetry["deskewed_image_data_uri"] = base64_data_uri
+                    provider_used = "local_fallback"
+            else:
                 cv_result = ClinicalCVPreprocessor.process_prescription_image(prescription_bytes)
                 base64_data_uri = cv_result["base64_data_uri"]
                 cv_telemetry = cv_result["telemetry"]
                 cv_telemetry["deskewed_image_data_uri"] = base64_data_uri
                 provider_used = "local_fallback"
-        else:
-            cv_result = ClinicalCVPreprocessor.process_prescription_image(prescription_bytes)
-            base64_data_uri = cv_result["base64_data_uri"]
-            cv_telemetry = cv_result["telemetry"]
-            cv_telemetry["deskewed_image_data_uri"] = base64_data_uri
-            provider_used = "local_fallback"
 
-        agent_execution_trace.append({
-            "step_name": "clinical_cv_preprocessor",
-            "status": "success",
-            "provider_used": provider_used,
-            "latency_ms": round((time.perf_counter() - cv_t0) * 1000, 2),
-            "spark_triggered_reason": "always_run"
-        })
+            agent_execution_trace.append({
+                "step_name": "clinical_cv_preprocessor",
+                "status": "success",
+                "provider_used": provider_used,
+                "latency_ms": round((time.perf_counter() - cv_t0) * 1000, 2),
+                "spark_triggered_reason": "always_run"
+            })
 
         # c) Concurrently execute process_regional_voice_note and segment_medical_scan_sam3
         audio_task = None
@@ -102,8 +106,10 @@ class IntakeOrchestrator:
 
         # e) Format dialect context and call multimodal extraction
         dialect_context_str = ", ".join([f"{a['matched_idiom']} ({a['clinical_translation']})" for a in dialect_icd10_alignment])
-        extracted = await extract_prescription_multimodal(base64_data_uri, dialect_context_str)
-        extracted = PrivacyShield.scrub_data(extracted)
+        extracted = {}
+        if base64_data_uri:
+            extracted = await extract_prescription_multimodal(base64_data_uri, dialect_context_str)
+            extracted = PrivacyShield.scrub_data(extracted)
 
         # f) Ground drug entities
         grounded_medications = []

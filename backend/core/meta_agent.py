@@ -14,13 +14,6 @@ from core.prompts import (
     build_ocr_extraction_prompt,
     build_wonder_escalation_prompt,
 )
-from database.fallback_fixtures import (
-    DEFAULT_CHITTAGONIAN_TRANSCRIPT,
-    DEFAULT_DOSAGE_CARD_URL,
-    DEFAULT_PRESCRIPTION_FIXTURE,
-    DEFAULT_TRIAGE_QUESTION_BN,
-    build_opencv_fallback_masks,
-)
 from config.settings import AIConfig
 from core.polypharmacy import PolypharmacyGraph
 
@@ -83,9 +76,7 @@ async def extract_prescription_multimodal(
       except Exception as exc:
         print(f"[Router Warning] {model} failed: {exc}")
 
-  fixture = DEFAULT_PRESCRIPTION_FIXTURE.model_dump()
-  fixture["provider_used"] = "fallback_fixture"
-  return fixture
+  raise RuntimeError("All providers failed or are unconfigured for multimodal extraction.")
 
 
 async def generate_entropy_triage_question(
@@ -109,7 +100,7 @@ async def generate_entropy_triage_question(
       except Exception:
         continue
 
-  return {"question": DEFAULT_TRIAGE_QUESTION_BN, "provider_used": "fallback_fixture"}
+  raise RuntimeError("All providers failed or are unconfigured for generating triage question.")
 
 
 async def escalate_polypharmacy_wonder(
@@ -130,11 +121,9 @@ async def segment_medical_scan_sam3(
         "lesion",
     ],
 ) -> Dict[str, np.ndarray]:
-  """Calls Meta's SAM 3.1 endpoint with automatic OpenCV morphological mask fallback."""
-  fallback_masks = build_opencv_fallback_masks(image_bytes)
-  fallback_masks["provider_used"] = "fallback_fixture"
+  """Calls Meta's SAM 3.1 endpoint."""
   if not _is_configured(AIConfig.META_API_KEY):
-    return fallback_masks
+    raise RuntimeError("Meta API key is unconfigured for SAM 3.1 segmentation.")
 
   try:
     payload = {
@@ -148,17 +137,17 @@ async def segment_medical_scan_sam3(
           f"{AIConfig.META_BASE_URL}/segment", json=payload, headers=headers
       )
       res.raise_for_status()
-    # Replace with real masks if the mock endpoint was real, for now fallback logic is sufficient, but we will attach provider.
-    fallback_masks["provider_used"] = "meta_api"
-    return fallback_masks
-  except Exception:
-    return fallback_masks
+    masks = res.json()
+    masks["provider_used"] = "meta_api"
+    return masks
+  except Exception as e:
+    raise RuntimeError(f"Segmentation failed: {e}")
 
 
 async def transcribe_audio_meta(audio_bytes: bytes) -> Dict[str, Any]:
   """Transcribes regional Bangladeshi audio via Meta's Muse Voice Transcribe."""
   if not _is_configured(AIConfig.META_API_KEY):
-    return {"transcript": DEFAULT_CHITTAGONIAN_TRANSCRIPT, "provider_used": "fallback_fixture"}
+    raise RuntimeError("Meta API key is unconfigured for transcription.")
 
   try:
     payload = {
@@ -173,8 +162,8 @@ async def transcribe_audio_meta(audio_bytes: bytes) -> Dict[str, Any]:
           headers=headers,
       )
       res.raise_for_status()
-      return {"transcript": res.json().get("text", DEFAULT_CHITTAGONIAN_TRANSCRIPT), "provider_used": "meta_api"}
-  except Exception:
+      return {"transcript": res.json().get("text", ""), "provider_used": "meta_api"}
+  except Exception as exc:
     # Attempt Baseten fallback
     if _is_configured(AIConfig.BASETEN_API_KEY):
         try:
@@ -187,17 +176,17 @@ async def transcribe_audio_meta(audio_bytes: bytes) -> Dict[str, Any]:
                     headers=b_headers,
                 )
                 b_res.raise_for_status()
-                return {"transcript": b_res.json().get("text", DEFAULT_CHITTAGONIAN_TRANSCRIPT), "provider_used": "baseten_api"}
+                return {"transcript": b_res.json().get("text", ""), "provider_used": "baseten_api"}
         except Exception:
             pass
 
-    return {"transcript": DEFAULT_CHITTAGONIAN_TRANSCRIPT, "provider_used": "fallback_fixture"}
+    raise RuntimeError(f"Transcription failed: {exc}")
 
 
 async def generate_patient_dosage_card(medications_summary: str) -> Dict[str, Any]:
   """Generates a visual dosage card via Meta's Muse Image 1.0."""
   if not _is_configured(AIConfig.META_API_KEY):
-    return {"url": DEFAULT_DOSAGE_CARD_URL, "provider_used": "fallback_fixture"}
+    raise RuntimeError("Meta API key is unconfigured for dosage card generation.")
 
   try:
     payload = {
@@ -215,8 +204,8 @@ async def generate_patient_dosage_card(medications_summary: str) -> Dict[str, An
           headers=headers,
       )
       res.raise_for_status()
-      return {"url": res.json()["data"][0].get("url", DEFAULT_DOSAGE_CARD_URL), "provider_used": "meta_api"}
-  except Exception:
+      return {"url": res.json()["data"][0].get("url", ""), "provider_used": "meta_api"}
+  except Exception as exc:
     if _is_configured(AIConfig.BASETEN_API_KEY):
       try:
           b_headers = {"Authorization": f"Bearer {AIConfig.BASETEN_API_KEY}"}
@@ -227,7 +216,7 @@ async def generate_patient_dosage_card(medications_summary: str) -> Dict[str, An
                   headers=b_headers,
               )
               b_res.raise_for_status()
-              return {"url": b_res.json()["data"][0].get("url", DEFAULT_DOSAGE_CARD_URL), "provider_used": "baseten_api"}
+              return {"url": b_res.json()["data"][0].get("url", ""), "provider_used": "baseten_api"}
       except Exception:
           pass
-    return {"url": DEFAULT_DOSAGE_CARD_URL, "provider_used": "fallback_fixture"}
+    raise RuntimeError(f"Dosage card generation failed: {exc}")
