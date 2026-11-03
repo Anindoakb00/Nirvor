@@ -15,15 +15,8 @@ async def process_regional_voice_note(audio_bytes: bytes, filename: str = "intak
     files = {"file": (filename, audio_bytes, "audio/wav")}
     data = {"model": "muse-voice-transcribe", "language": "bn", "diarize": "true"}
 
-    fallback_response = {
-        "transcript": "আঁর পেটত ব্যথা গরের আর বুক জ্বালাপোড়া গরের, সার্জেল খাই",
-        "detected_dialect": "Chittagonian Bangla",
-        "speakers": [{"speaker": "Patient", "timestamps": [0.0, 4.2]}],
-        "latency_ms": 150.0
-    }
-
     if not META_API_KEY or META_API_KEY == "your_key_here":
-        return fallback_response
+        raise RuntimeError("META_API_KEY is not configured for audio transcription.")
 
     start_time = time.perf_counter()
     try:
@@ -35,6 +28,4 @@ async def process_regional_voice_note(audio_bytes: bytes, filename: str = "intak
             result["latency_ms"] = latency_ms
             return result
     except Exception as e:
-        latency_ms = (time.perf_counter() - start_time) * 1000
-        fallback_response["latency_ms"] = latency_ms
-        return fallback_response
+        raise RuntimeError(f"Audio transcription failed: {e}")
