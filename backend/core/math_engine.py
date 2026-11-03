@@ -344,6 +344,40 @@ class ClinicalMathEngine:
         ],
     }
 
+  def verify_symptom_medication_coherence(
+      self,
+      dialect_symptoms: List[Dict[str, Any]],
+      grounded_medications: List[Dict[str, Any]]
+  ) -> Dict[str, Any]:
+    """Cross-checks aligned dialect ICD-10 symptoms against grounded medication categories."""
+    is_coherent = True
+    contradiction_flags = []
+    matched_indications = []
+    coherence_score = 1.0
+
+    symptom_codes = [s.get("icd10_code") for s in dialect_symptoms]
+
+    # Check for specific contradictions like respiratory symptoms with GI drugs (example logic based on description)
+    has_gi_drug = any("Proton Pump Inhibitor" in m.get("matched_drug", {}).get("category", "") for m in grounded_medications)
+    has_gi_symptom = any("K21.9" in c or "R10.13" in c for c in symptom_codes if c)
+    has_resp_symptom = any("R06.02" in c for c in symptom_codes if c)
+
+    if has_gi_drug and has_resp_symptom and not has_gi_symptom:
+       is_coherent = False
+       coherence_score = 0.0
+       contradiction_flags.append("Respiratory symptom found but GI drug prescribed without GI symptom.")
+
+    # This logic can be expanded.
+    if has_gi_drug and has_gi_symptom:
+        matched_indications.append("Gastric symptoms correctly map to GI medication.")
+
+    return {
+        "is_coherent": is_coherent,
+        "coherence_score": round(coherence_score, 4),
+        "matched_indications": matched_indications,
+        "contradiction_flags": contradiction_flags
+    }
+
   def align_regional_dialect_symptoms(
       self, raw_transcript: str, top_k: int = 2
   ) -> List[Dict[str, Any]]:

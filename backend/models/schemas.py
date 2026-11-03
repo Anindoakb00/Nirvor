@@ -33,3 +33,40 @@ class PolypharmacyIntervention(BaseModel):
   clinical_mechanism: str
   recommended_action: str
   bangla_patient_warning: str
+
+
+class ClinicalCoherenceReport(BaseModel):
+    is_coherent: bool
+    coherence_score: float
+    matched_indications: List[str]
+    contradiction_flags: List[str]
+
+
+class AgentExecutionTraceItem(BaseModel):
+    step_name: str
+    status: str
+    provider_used: str
+    latency_ms: float
+    spark_triggered_reason: str
+
+
+class JudgeHudSummary(BaseModel):
+    total_latency_ms: float
+    hallucinations_intercepted: int
+    mean_shannon_entropy: float
+    active_verification_flags: int
+
+
+class CompleteIntakeResponse(BaseModel):
+    status: str
+    cv_telemetry: dict
+    voice_intake: dict | None = None
+    dialect_icd10_alignment: list
+    clinical_coherence_report: ClinicalCoherenceReport | None = None
+    active_triage_question: str | None = None
+    polypharmacy_intervention: PolypharmacyIntervention | None = None
+    patient_dosage_card: str | None = None
+    grounded_medications: list
+    scan_biometrics: dict
+    judge_hud_summary: JudgeHudSummary
+    agent_execution_trace: List[AgentExecutionTraceItem]

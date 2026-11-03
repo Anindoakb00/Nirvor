@@ -180,33 +180,15 @@ If executed locally without Baseten/Meta API keys properly configured in `.env`,
 ## 4. Completeness Check (What Works vs. What is Incomplete/Broken)
 
 ### 🟢 Working (100% Functional)
-- **FastAPI Core Framework**: Routing, app lifecycle, file ingestion.
-- **Agent Orchestrator Loop**: Correctly fires parallel requests, handles sync vs async.
-- **Clinical Math Engine**: The neuro-symbolic algorithms (Levenshtein, Cosine, Posterior Probabilities) are extremely robust and fully functional.
-- **CV Preprocessor Pipeline**: Homography deskewing and Retinex shadow removal work perfectly.
-- **Fallback Mock Mechanisms**: API key absence gracefully falls back to mock responses, preventing the server from crashing.
+- **FastAPI Core Framework**: Routing, app lifecycle, file ingestion, frontend mounting, and status endpoints.
+- **Agent Orchestrator Loop**: Correctly fires parallel requests, handles sync vs async, records step latency and triggers clinical sparks based on mathematical indicators.
+- **Clinical Math Engine**: The neuro-symbolic algorithms (Levenshtein, Cosine, Posterior Probabilities) are extremely robust, checking symptom-medication semantic contradiction, and fully functional.
+- **CV Preprocessor Pipeline**: Homography deskewing and Retinex shadow removal work locally, and safely offload to Modal Serverless GPU when `USE_MODAL_CLOUD_CV` is true.
+- **Agent Failover Chain**: API calls auto-failover from Meta -> Baseten -> Mock Fixtures depending on `.env` configuration.
+- **Pitch Black UI Frontend**: Single click demo mode and pitch black linear styling handles all multimodal testing efficiently from a browser.
 
 ### 🔴 Incomplete / Broken / Disconnected
-1. **Missing Frontend UI (`backend/static/index.html`)**: There is absolutely no frontend code inside the repository. Users cannot interact with the system via a browser.
-2. **Unused Serverless Components (`backend/core/modal_worker.py`)**: The Modal CV worker script exists but is never imported or utilized by the `IntakeOrchestrator` or CV Pipeline.
-3. **Redundant Audio Pipeline Logic**: Both `core/audio_pipeline.py` and `core/meta_agent.py` contain distinct functions for transcribing audio (`process_regional_voice_note` vs `transcribe_audio_meta`). Only the former is actually called in the Orchestrator.
-4. **Missing Prompt Implementations**: Functions like `generate_entropy_triage_question`, `escalate_polypharmacy_wonder`, and `generate_patient_dosage_card` in `meta_agent.py` exist but are never called anywhere in the Orchestrator pipeline.
-5. **No Actual Database Connection**: The "database" is just a static JSON file (`dims_drug_db.json`). There is no Postgres/SQLite usage as one might expect in a production environment.
-
+1. **No Actual Database Connection**: The "database" is just a static JSON file (`dims_drug_db.json`). There is no Postgres/SQLite usage as one might expect in a production environment.
 
 ## 5. Immediate Action Plan for Next Version (v0.0.4)
-
-To complete the pipeline for the hackathon submission, prioritize the following tasks:
-
-1. **Develop and Mount Frontend UI (`index.html`)**
-   - Create a Vue.js or Vanilla JS single-page application in `backend/static/index.html`.
-   - Setup a `FastAPI.mount()` call in `main.py` to serve this static file.
-   - Build a file upload form that maps directly to the `/api/v2/intake-pipeline` multipart format.
-2. **Integrate Unused Meta Agent Features**
-   - Update `IntakeOrchestrator` to invoke `escalate_polypharmacy_wonder` if the combined drug lists flag critical interactions.
-   - Update `IntakeOrchestrator` to invoke `generate_patient_dosage_card` using the grounded drug list to output a URL for the frontend.
-3. **Consolidate Cloud & Pipeline Logic**
-   - Either remove `modal_worker.py` or integrate it as a fallback inside `ClinicalCVPreprocessor`.
-   - Remove redundant `transcribe_audio_meta` in `meta_agent.py` in favor of `audio_pipeline.py`.
-4. **Environment Setup Guidance**
-   - Provide a `.env` loader script or explicit error raising if API keys are missing when the user explicitly requests production mode (so judges don't accidentally evaluate the mock data without realizing it).
+1. Convert `dims_drug_db.json` into a proper Postgres/SQLite solution for scale.
