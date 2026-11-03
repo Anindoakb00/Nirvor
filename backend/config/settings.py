@@ -24,3 +24,6 @@ class AIConfig:
 
     USE_MODAL_CLOUD_CV = os.getenv("USE_MODAL_CLOUD_CV", "false").lower() == "true"
     MODAL_TOKEN_EXISTS = os.path.exists(os.path.expanduser("~/.modal.toml"))
+
+    SUPABASE_URL = os.getenv("SUPABASE_URL", "")
+    SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")

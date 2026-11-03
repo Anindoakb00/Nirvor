@@ -13,6 +13,7 @@ from core.meta_agent import (
     generate_patient_dosage_card
 )
 from config.settings import AIConfig
+from core.privacy import PrivacyShield
 
 class IntakeOrchestrator:
     def __init__(self):
@@ -95,11 +96,14 @@ class IntakeOrchestrator:
         transcript = ""
         if voice_intake and "transcript" in voice_intake:
             transcript = voice_intake["transcript"]
+            transcript = PrivacyShield.scrub_text(transcript)
+            voice_intake["transcript"] = transcript
             dialect_icd10_alignment = self.math_engine.align_regional_dialect_symptoms(transcript)
 
         # e) Format dialect context and call multimodal extraction
         dialect_context_str = ", ".join([f"{a['matched_idiom']} ({a['clinical_translation']})" for a in dialect_icd10_alignment])
         extracted = await extract_prescription_multimodal(base64_data_uri, dialect_context_str)
+        extracted = PrivacyShield.scrub_data(extracted)
 
         # f) Ground drug entities
         grounded_medications = []

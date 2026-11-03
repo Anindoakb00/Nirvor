@@ -5,7 +5,6 @@ import numpy as np
 from models.schemas import (
     MedicationItem,
     PatientVitals,
-    PolypharmacyIntervention,
     PrescriptionExtraction,
 )
 
@@ -34,21 +33,6 @@ DEFAULT_PRESCRIPTION_FIXTURE = PrescriptionExtraction(
         bp="120/80", pulse="72", temp="98.6", creatinine_mg_dl=1.0
     ),
     raw_symptoms=["chest pain", "dizziness"],
-)
-
-DEFAULT_POLYPHARMACY_FIXTURE = PolypharmacyIntervention(
-    risk_level="CRITICAL",
-    clinical_mechanism=(
-        "Concurrent Ketorolac (Rolac) and Aceclofenac (Flexi) administration "
-        "causes cumulative COX inhibition and acute renal afferent arteriolar vasoconstriction."
-    ),
-    recommended_action=(
-        "Immediately discontinue one NSAID and monitor serum creatinine."
-    ),
-    bangla_patient_warning=(
-        "সতর্কতা: রোলাক (Rolac) এবং ফ্লেক্সি (Flexi) একসাথে সেবন করলে কিডনির "
-        "মারাত্মক ক্ষতি হতে পারে। অবিলম্বে ডাক্তারের পরামর্শ নিন।"
-    ),
 )
 
 DEFAULT_TRIAGE_QUESTION_BN = (
