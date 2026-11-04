@@ -1,11 +1,7 @@
 import json
+import httpx
 from openai import AsyncOpenAI
 from config.settings import AIConfig
-
-meta_client = AsyncOpenAI(
-    base_url=AIConfig.META_BASE_URL,
-    api_key=AIConfig.META_API_KEY or "unconfigured",
-)
 
 SYSTEM_PROMPT = """
 You are a clinical reasoning AI. Analyze the patient transcript and telemetry.
@@ -30,7 +26,7 @@ You MUST return a STRICT JSON object that matches the following schema exactly:
 }
 """
 
-async def analyze_clinical_transcript(transcript: str, telemetry: dict) -> dict:
+async def generate_clinical_insights(transcript: str, telemetry: dict) -> dict:
     if not AIConfig.META_API_KEY or AIConfig.META_API_KEY.startswith("your_") or AIConfig.META_API_KEY == "unconfigured":
         raise RuntimeError("Meta API key is unconfigured for clinical reasoning.")
 
@@ -40,13 +36,41 @@ async def analyze_clinical_transcript(transcript: str, telemetry: dict) -> dict:
     ]
 
     try:
-        res = await meta_client.chat.completions.create(
-            model=AIConfig.META_SPARK_MODEL,
-            messages=messages,
-            temperature=0.1,
-            response_format={"type": "json_object"}
-        )
-        content = res.choices[0].message.content
-        return json.loads(content)
+        payload = {
+            "model": AIConfig.META_SPARK_MODEL,
+            "messages": messages,
+            "temperature": 0.1,
+            "response_format": {"type": "json_object"}
+        }
+        headers = {
+            "Authorization": f"Bearer {AIConfig.META_API_KEY}",
+            "Content-Type": "application/json"
+        }
+        async with httpx.AsyncClient(timeout=45.0) as client:
+            res = await client.post(
+                f"{AIConfig.META_BASE_URL}/chat/completions",
+                json=payload,
+                headers=headers
+            )
+            print(f"Raw API response: {res.text}")
+            res.raise_for_status()
+            content = res.json()["choices"][0]["message"]["content"]
+            return json.loads(content)
     except Exception as e:
-        raise RuntimeError(f"Clinical reasoning failed: {e}")
+        return {
+            "doctor_view": {
+                "clinical_summary": f"BACKEND ERROR: {str(e)}",
+                "dialect_icd10_alignment": [],
+                "active_triage_question": "Check Uvicorn terminal for raw LLM output.",
+                "grounded_medications": [],
+                "verification_telemetry": {
+                    "primary_vector_match_score": 0.0,
+                    "grounding_source_text": "",
+                    "hallucination_risk_status": "High"
+                }
+            },
+            "patient_view": {
+                "layman_explanation": "Error processing request.",
+                "next_steps": ""
+            }
+        }

@@ -12,7 +12,7 @@ from core.meta_agent import (
     generate_patient_dosage_card,
     transcribe_audio_meta
 )
-from core.clinical_agent import analyze_clinical_transcript
+from core.clinical_agent import generate_clinical_insights
 from config.settings import AIConfig
 from core.privacy import PrivacyShield
 
@@ -51,7 +51,7 @@ class IntakeOrchestrator:
 
         clinical_analysis = {}
         if transcript:
-            analysis_resp = await self._safe_execute(analyze_clinical_transcript(transcript, telemetry), error_details, "Clinical Analysis")
+            analysis_resp = await self._safe_execute(generate_clinical_insights(transcript, telemetry), error_details, "Clinical Analysis")
             if analysis_resp:
                 clinical_analysis = analysis_resp
 
