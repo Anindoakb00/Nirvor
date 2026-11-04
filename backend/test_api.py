@@ -14,27 +14,24 @@ def test_system_status():
     assert response.status_code == 200
     data = response.json()
     assert "meta_configured" in data
-    assert "baseten_configured" in data
+    assert "baseten_configured" not in data
     assert "modal_configured" in data
     assert data["version"] == "0.0.3"
 
 @pytest.mark.asyncio
 async def test_intake_voice_empty():
     response = client.post("/api/v2/intake/voice")
-    assert response.status_code == 200
-    data = response.json()
-    assert data["status"] == "success"
+    # Our new implementation returns 400 when missing audio file
+    assert response.status_code == 400
 
 @pytest.mark.asyncio
 async def test_intake_prescription_empty():
     response = client.post("/api/v2/intake/prescription")
-    assert response.status_code == 200
-    data = response.json()
-    assert data["status"] == "success"
+    # Our new implementation returns 400 when missing prescription image
+    assert response.status_code == 400
 
 @pytest.mark.asyncio
 async def test_intake_xray_empty():
     response = client.post("/api/v2/intake/xray")
-    assert response.status_code == 200
-    data = response.json()
-    assert data["status"] == "success"
+    # Our new implementation returns 400 when missing xray image
+    assert response.status_code == 400

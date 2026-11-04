@@ -22,11 +22,6 @@ from core.polypharmacy import PolypharmacyGraph
 load_dotenv()
 
 
-baseten_client = AsyncOpenAI(
-    base_url=AIConfig.BASETEN_BASE_URL,
-    api_key=AIConfig.BASETEN_API_KEY or "unconfigured",
-)
-
 meta_client = AsyncOpenAI(
     base_url=AIConfig.META_BASE_URL,
     api_key=AIConfig.META_API_KEY or "unconfigured",
@@ -47,7 +42,7 @@ def _parse_json(raw_text: str) -> Dict[str, Any]:
 async def extract_prescription_multimodal(
     base64_data_uri: str, dialect_context: str = ""
 ) -> Dict[str, Any]:
-  """Routes OCR to Baseten (Muse Spark Open) -> Meta API (Spark 1.3)."""
+  """Routes OCR to Meta API (Spark 1.3)."""
   messages = [
       {"role": "system", "content": SYSTEM_CLINICAL_JSON},
       {
@@ -62,47 +57,38 @@ async def extract_prescription_multimodal(
       },
   ]
 
-  # Primary Meta -> Baseten
-  for client, key, model, provider_name in [
-      (meta_client, AIConfig.META_API_KEY, AIConfig.META_SPARK_MODEL, "meta_api"),
-      (baseten_client, AIConfig.BASETEN_API_KEY, AIConfig.BASETEN_MODEL, "baseten_api"),
-  ]:
-    if _is_configured(key):
-      try:
-        res = await client.chat.completions.create(
-            model=model, messages=messages, temperature=0.1
-        )
-        parsed = _parse_json(res.choices[0].message.content)
-        parsed["provider_used"] = provider_name
-        return parsed
-      except Exception as exc:
-        print(f"[Router Warning] {model} failed: {exc}")
+  if _is_configured(AIConfig.META_API_KEY):
+    try:
+      res = await meta_client.chat.completions.create(
+          model=AIConfig.META_SPARK_MODEL, messages=messages, temperature=0.1
+      )
+      parsed = _parse_json(res.choices[0].message.content)
+      parsed["provider_used"] = "meta_api"
+      return parsed
+    except Exception as exc:
+      raise RuntimeError(f"Multimodal extraction failed: {exc}")
 
-  raise RuntimeError("All providers failed or are unconfigured for multimodal extraction.")
+  raise RuntimeError("Meta API is unconfigured for multimodal extraction.")
 
 
 async def generate_entropy_triage_question(
     ambiguous_candidates: List[Dict[str, Any]], dialect: str = "Standard Bangla"
 ) -> Dict[str, Any]:
-  """Generates an active Bangla disambiguation question via Muse Spark 1.3 or Baseten."""
+  """Generates an active Bangla disambiguation question via Muse Spark 1.3."""
   prompt = build_entropy_triage_prompt(ambiguous_candidates, dialect)
 
-  for client, key, model, provider_name in [
-      (meta_client, AIConfig.META_API_KEY, AIConfig.META_SPARK_MODEL, "meta_api"),
-      (baseten_client, AIConfig.BASETEN_API_KEY, AIConfig.BASETEN_MODEL, "baseten_api"),
-  ]:
-    if _is_configured(key):
-      try:
-        res = await client.chat.completions.create(
-            model=model,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.2,
-        )
-        return {"question": res.choices[0].message.content.strip(), "provider_used": provider_name}
-      except Exception:
-        continue
+  if _is_configured(AIConfig.META_API_KEY):
+    try:
+      res = await meta_client.chat.completions.create(
+          model=AIConfig.META_SPARK_MODEL,
+          messages=[{"role": "user", "content": prompt}],
+          temperature=0.2,
+      )
+      return {"question": res.choices[0].message.content.strip(), "provider_used": "meta_api"}
+    except Exception as exc:
+      raise RuntimeError(f"Triage question generation failed: {exc}")
 
-  raise RuntimeError("All providers failed or are unconfigured for generating triage question.")
+  raise RuntimeError("Meta API is unconfigured for generating triage question.")
 
 
 async def escalate_polypharmacy_wonder(
@@ -160,7 +146,7 @@ async def transcribe_audio_meta(audio_bytes: bytes) -> Dict[str, Any]:
 
     files_payload = {
         "request": (None, '{"model":"muse-voice-transcribe-1.0","audioEncoding":"WAV","mode":"PUSH_TO_TALK"}', "application/json"),
-        "audio": ("recording.wav", wav_bytes, "audio/wav")
+        "file": ("recording.wav", wav_bytes, "audio/wav")
     }
 
     headers = {
@@ -169,32 +155,13 @@ async def transcribe_audio_meta(audio_bytes: bytes) -> Dict[str, Any]:
     }
     async with httpx.AsyncClient(timeout=45.0) as client:
       res = await client.post(
-          f"{AIConfig.META_BASE_URL}/asr/transcribe",
+          f"{AIConfig.META_BASE_URL}/audio/transcriptions",
           files=files_payload,
           headers=headers,
       )
       res.raise_for_status()
-      return {"transcript": res.json().get("transcript", ""), "provider_used": "meta_api"}
+      return {"transcript": res.json().get("text", ""), "provider_used": "meta_api"}
   except Exception as exc:
-    # Attempt Baseten fallback with old style because baseten might be expecting OpenAI style
-    if _is_configured(AIConfig.BASETEN_API_KEY):
-        try:
-            b_payload = {
-                "model": AIConfig.META_VOICE_MODEL,
-                "audio": base64.b64encode(audio_bytes).decode("utf-8"),
-            }
-            b_headers = {"Authorization": f"Bearer {AIConfig.BASETEN_API_KEY}"}
-            async with httpx.AsyncClient(timeout=45.0) as b_client:
-                b_res = await b_client.post(
-                    f"{AIConfig.BASETEN_BASE_URL}/audio/transcriptions",
-                    json=b_payload,
-                    headers=b_headers,
-                )
-                b_res.raise_for_status()
-                return {"transcript": b_res.json().get("text", ""), "provider_used": "baseten_api"}
-        except Exception:
-            pass
-
     raise RuntimeError(f"Transcription failed: {exc}")
 
 
@@ -221,17 +188,4 @@ async def generate_patient_dosage_card(medications_summary: str) -> Dict[str, An
       res.raise_for_status()
       return {"url": res.json()["data"][0].get("url", ""), "provider_used": "meta_api"}
   except Exception as exc:
-    if _is_configured(AIConfig.BASETEN_API_KEY):
-      try:
-          b_headers = {"Authorization": f"Bearer {AIConfig.BASETEN_API_KEY}"}
-          async with httpx.AsyncClient(timeout=45.0) as b_client:
-              b_res = await b_client.post(
-                  f"{AIConfig.BASETEN_BASE_URL}/images/generations",
-                  json=payload,
-                  headers=b_headers,
-              )
-              b_res.raise_for_status()
-              return {"url": b_res.json()["data"][0].get("url", ""), "provider_used": "baseten_api"}
-      except Exception:
-          pass
     raise RuntimeError(f"Dosage card generation failed: {exc}")
