@@ -71,3 +71,23 @@ class CompleteIntakeResponse(BaseModel):
     scan_biometrics: dict = Field(default_factory=dict)
     judge_hud_summary: JudgeHudSummary
     agent_execution_trace: List[AgentExecutionTraceItem] = Field(default_factory=list)
+
+class VerificationTelemetry(BaseModel):
+    primary_vector_match_score: float
+    grounding_source_text: str
+    hallucination_risk_status: Literal["Low", "Medium", "High"]
+
+class DoctorView(BaseModel):
+    clinical_summary: str
+    dialect_icd10_alignment: List[str]
+    active_triage_question: str
+    grounded_medications: List[str]
+    verification_telemetry: VerificationTelemetry
+
+class PatientView(BaseModel):
+    layman_explanation: str
+    next_steps: str
+
+class ClinicalAnalysisResponse(BaseModel):
+    doctor_view: DoctorView
+    patient_view: PatientView

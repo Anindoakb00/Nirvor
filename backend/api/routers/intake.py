@@ -14,25 +14,27 @@ orchestrator = IntakeOrchestrator()
 def system_status():
     return {
         "meta_configured": bool(AIConfig.META_API_KEY and AIConfig.META_API_KEY != "your_key_here" and AIConfig.META_API_KEY != "unconfigured"),
-        "baseten_configured": bool(AIConfig.BASETEN_API_KEY and AIConfig.BASETEN_API_KEY != "your_key_here" and AIConfig.BASETEN_API_KEY != "unconfigured"),
         "modal_configured": AIConfig.USE_MODAL_CLOUD_CV or AIConfig.MODAL_TOKEN_EXISTS,
         "version": "0.0.3"
     }
 
-from models.schemas import CompleteIntakeResponse
+from models.schemas import CompleteIntakeResponse, ClinicalAnalysisResponse
 
-@router.post("/api/v2/intake/voice", response_model=CompleteIntakeResponse)
+@router.post("/api/v2/intake/voice", response_model=ClinicalAnalysisResponse)
 async def intake_voice(
     audio: Optional[UploadFile] = File(None),
 ):
-    try:
-        audio_bytes = None
-        audio_filename = None
-        if audio and audio.filename:
-            audio_bytes = await audio.read()
-            audio_filename = audio.filename
+    audio_bytes = None
+    audio_filename = None
+    if audio and audio.filename:
+        audio_bytes = await audio.read()
+        audio_filename = audio.filename
 
-        return await orchestrator.process_intake(
+    if not audio_bytes:
+         raise HTTPException(status_code=400, detail="Missing audio file")
+
+    try:
+        return await orchestrator.process_voice(
             audio_bytes=audio_bytes,
             audio_filename=audio_filename
         )
@@ -43,12 +45,15 @@ async def intake_voice(
 async def intake_prescription(
     prescription: Optional[UploadFile] = File(None),
 ):
-    try:
-        prescription_bytes = None
-        if prescription and prescription.filename:
-            prescription_bytes = await prescription.read()
+    prescription_bytes = None
+    if prescription and prescription.filename:
+        prescription_bytes = await prescription.read()
 
-        return await orchestrator.process_intake(
+    if not prescription_bytes:
+         raise HTTPException(status_code=400, detail="Missing prescription image")
+
+    try:
+        return await orchestrator.process_prescription(
             prescription_bytes=prescription_bytes
         )
     except Exception as e:
@@ -58,12 +63,15 @@ async def intake_prescription(
 async def intake_xray(
     xray_scan: Optional[UploadFile] = File(None),
 ):
-    try:
-        xray_bytes = None
-        if xray_scan and xray_scan.filename:
-            xray_bytes = await xray_scan.read()
+    xray_bytes = None
+    if xray_scan and xray_scan.filename:
+        xray_bytes = await xray_scan.read()
 
-        return await orchestrator.process_intake(
+    if not xray_bytes:
+         raise HTTPException(status_code=400, detail="Missing xray image")
+
+    try:
+        return await orchestrator.process_xray(
             xray_bytes=xray_bytes
         )
     except Exception as e:
