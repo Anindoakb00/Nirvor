@@ -1,4 +1,5 @@
 import base64
+import io
 import json
 import os
 from typing import Any, Dict, List
@@ -6,6 +7,7 @@ from typing import Any, Dict, List
 from dotenv import load_dotenv
 import httpx
 import numpy as np
+from pydub import AudioSegment
 from openai import AsyncOpenAI
 
 from core.prompts import (
@@ -150,26 +152,43 @@ async def transcribe_audio_meta(audio_bytes: bytes) -> Dict[str, Any]:
     raise RuntimeError("Meta API key is unconfigured for transcription.")
 
   try:
-    payload = {
-        "model": AIConfig.META_VOICE_MODEL,
-        "audio": base64.b64encode(audio_bytes).decode("utf-8"),
+    # Convert .m4a to .wav
+    audio = AudioSegment.from_file(io.BytesIO(audio_bytes))
+    wav_io = io.BytesIO()
+    audio.export(wav_io, format="wav")
+    wav_bytes = wav_io.getvalue()
+
+    request_data = {
+        "model": "muse-voice-transcribe-1.0",
+        "audioEncoding": "WAV",
+        "mode": "PUSH_TO_TALK",
     }
-    headers = {"Authorization": f"Bearer {AIConfig.META_API_KEY}"}
-    async with httpx.AsyncClient(timeout=30.0) as client:
+    data = {"request": json.dumps(request_data)}
+    files = {"audio": ("audio.wav", wav_bytes, "audio/wav")}
+
+    headers = {
+        "Authorization": f"Bearer {AIConfig.META_API_KEY}",
+        "Accept": "application/json",
+    }
+    async with httpx.AsyncClient(timeout=45.0) as client:
       res = await client.post(
-          f"{AIConfig.META_BASE_URL}/audio/transcriptions",
-          json=payload,
+          f"{AIConfig.META_BASE_URL}/asr/transcribe",
+          data=data,
+          files=files,
           headers=headers,
       )
       res.raise_for_status()
-      return {"transcript": res.json().get("text", ""), "provider_used": "meta_api"}
+      return {"transcript": res.json().get("transcript", ""), "provider_used": "meta_api"}
   except Exception as exc:
-    # Attempt Baseten fallback
+    # Attempt Baseten fallback with old style because baseten might be expecting OpenAI style
     if _is_configured(AIConfig.BASETEN_API_KEY):
         try:
-            b_payload = payload
+            b_payload = {
+                "model": AIConfig.META_VOICE_MODEL,
+                "audio": base64.b64encode(audio_bytes).decode("utf-8"),
+            }
             b_headers = {"Authorization": f"Bearer {AIConfig.BASETEN_API_KEY}"}
-            async with httpx.AsyncClient(timeout=30.0) as b_client:
+            async with httpx.AsyncClient(timeout=45.0) as b_client:
                 b_res = await b_client.post(
                     f"{AIConfig.BASETEN_BASE_URL}/audio/transcriptions",
                     json=b_payload,
