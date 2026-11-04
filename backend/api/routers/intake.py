@@ -29,17 +29,17 @@ async def intake_pipeline(
 ):
     try:
         prescription_bytes = None
-        if prescription:
+        if prescription and prescription.filename:
             prescription_bytes = await prescription.read()
 
         audio_bytes = None
         audio_filename = None
-        if audio:
+        if audio and audio.filename:
             audio_bytes = await audio.read()
             audio_filename = audio.filename
 
         xray_bytes = None
-        if xray_scan:
+        if xray_scan and xray_scan.filename:
             xray_bytes = await xray_scan.read()
 
         return await orchestrator.process_intake(
