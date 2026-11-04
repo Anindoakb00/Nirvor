@@ -21,33 +21,50 @@ def system_status():
 
 from models.schemas import CompleteIntakeResponse
 
-@router.post("/api/v2/intake-pipeline", response_model=CompleteIntakeResponse)
-async def intake_pipeline(
-    prescription: Optional[UploadFile] = File(None),
+@router.post("/api/v2/intake/voice", response_model=CompleteIntakeResponse)
+async def intake_voice(
     audio: Optional[UploadFile] = File(None),
-    xray_scan: Optional[UploadFile] = File(None),
 ):
     try:
-        prescription_bytes = None
-        if prescription and prescription.filename:
-            prescription_bytes = await prescription.read()
-
         audio_bytes = None
         audio_filename = None
         if audio and audio.filename:
             audio_bytes = await audio.read()
             audio_filename = audio.filename
 
+        return await orchestrator.process_intake(
+            audio_bytes=audio_bytes,
+            audio_filename=audio_filename
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/api/v2/intake/prescription", response_model=CompleteIntakeResponse)
+async def intake_prescription(
+    prescription: Optional[UploadFile] = File(None),
+):
+    try:
+        prescription_bytes = None
+        if prescription and prescription.filename:
+            prescription_bytes = await prescription.read()
+
+        return await orchestrator.process_intake(
+            prescription_bytes=prescription_bytes
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/api/v2/intake/xray", response_model=CompleteIntakeResponse)
+async def intake_xray(
+    xray_scan: Optional[UploadFile] = File(None),
+):
+    try:
         xray_bytes = None
         if xray_scan and xray_scan.filename:
             xray_bytes = await xray_scan.read()
 
         return await orchestrator.process_intake(
-            prescription_bytes=prescription_bytes,
-            audio_bytes=audio_bytes,
-            audio_filename=audio_filename,
             xray_bytes=xray_bytes
         )
-
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
