@@ -20,7 +20,10 @@ def system_status():
 
 from models.schemas import CompleteIntakeResponse, ClinicalAnalysisResponse
 
-@router.post("/api/v2/intake/voice", response_model=ClinicalAnalysisResponse)
+from core.meta_agent import transcribe_audio_meta
+from core.clinical_agent import generate_clinical_insights
+
+@router.post("/api/v2/intake/voice")
 async def intake_voice(
     audio: Optional[UploadFile] = File(None),
 ):
@@ -34,12 +37,12 @@ async def intake_voice(
          raise HTTPException(status_code=400, detail="Missing audio file")
 
     try:
-        return await orchestrator.process_voice(
-            audio_bytes=audio_bytes,
-            audio_filename=audio_filename
-        )
+        voice_intake = await transcribe_audio_meta(audio_bytes)
+        transcript = voice_intake.get("transcript", "") if voice_intake else ""
+        telemetry = {}
+        return await generate_clinical_insights(transcript, telemetry)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        return {"error": f"ROUTER CRASH: {str(e)}", "details": "Check terminal."}
 
 @router.post("/api/v2/intake/prescription", response_model=CompleteIntakeResponse)
 async def intake_prescription(
