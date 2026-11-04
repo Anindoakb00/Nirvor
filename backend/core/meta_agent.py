@@ -152,19 +152,16 @@ async def transcribe_audio_meta(audio_bytes: bytes) -> Dict[str, Any]:
     raise RuntimeError("Meta API key is unconfigured for transcription.")
 
   try:
-    # Convert .m4a to .wav
-    audio = AudioSegment.from_file(io.BytesIO(audio_bytes))
+    # Convert .m4a to .wav and downsample
+    audio = AudioSegment.from_file(io.BytesIO(audio_bytes)).set_frame_rate(16000).set_channels(1)
     wav_io = io.BytesIO()
     audio.export(wav_io, format="wav")
     wav_bytes = wav_io.getvalue()
 
-    request_data = {
-        "model": "muse-voice-transcribe-1.0",
-        "audioEncoding": "WAV",
-        "mode": "PUSH_TO_TALK",
+    files_payload = {
+        "request": (None, '{"model":"muse-voice-transcribe-1.0","audioEncoding":"WAV","mode":"PUSH_TO_TALK"}', "application/json"),
+        "audio": ("recording.wav", wav_bytes, "audio/wav")
     }
-    data = {"request": json.dumps(request_data)}
-    files = {"audio": ("audio.wav", wav_bytes, "audio/wav")}
 
     headers = {
         "Authorization": f"Bearer {AIConfig.META_API_KEY}",
@@ -173,8 +170,7 @@ async def transcribe_audio_meta(audio_bytes: bytes) -> Dict[str, Any]:
     async with httpx.AsyncClient(timeout=45.0) as client:
       res = await client.post(
           f"{AIConfig.META_BASE_URL}/asr/transcribe",
-          data=data,
-          files=files,
+          files=files_payload,
           headers=headers,
       )
       res.raise_for_status()
