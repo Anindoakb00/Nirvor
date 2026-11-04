@@ -19,8 +19,22 @@ def test_system_status():
     assert data["version"] == "0.0.3"
 
 @pytest.mark.asyncio
-async def test_intake_pipeline_empty():
-    response = client.post("/api/v2/intake-pipeline")
+async def test_intake_voice_empty():
+    response = client.post("/api/v2/intake/voice")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "success"
+
+@pytest.mark.asyncio
+async def test_intake_prescription_empty():
+    response = client.post("/api/v2/intake/prescription")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "success"
+
+@pytest.mark.asyncio
+async def test_intake_xray_empty():
+    response = client.post("/api/v2/intake/xray")
     assert response.status_code == 200
     data = response.json()
     assert data["status"] == "success"
