@@ -45,7 +45,7 @@ def _parse_json(raw_text: str) -> Dict[str, Any]:
 async def extract_prescription_multimodal(
     base64_data_uri: str, dialect_context: str = ""
 ) -> Dict[str, Any]:
-  """Routes OCR to Baseten (Muse Spark Open) -> Meta API (Spark 1.3) -> Fixture Fallback."""
+  """Routes OCR to Baseten (Muse Spark Open) -> Meta API (Spark 1.3)."""
   messages = [
       {"role": "system", "content": SYSTEM_CLINICAL_JSON},
       {
@@ -60,7 +60,7 @@ async def extract_prescription_multimodal(
       },
   ]
 
-  # Primary Meta -> Baseten -> Fallback
+  # Primary Meta -> Baseten
   for client, key, model, provider_name in [
       (meta_client, AIConfig.META_API_KEY, AIConfig.META_SPARK_MODEL, "meta_api"),
       (baseten_client, AIConfig.BASETEN_API_KEY, AIConfig.BASETEN_MODEL, "baseten_api"),

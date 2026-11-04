@@ -1,4 +1,4 @@
-from typing import List, Literal
+from typing import List, Literal, Optional
 from pydantic import BaseModel, Field
 
 
@@ -59,14 +59,15 @@ class JudgeHudSummary(BaseModel):
 
 class CompleteIntakeResponse(BaseModel):
     status: str
-    cv_telemetry: dict
+    error_details: Optional[List[str]] = None
+    cv_telemetry: dict = Field(default_factory=dict)
     voice_intake: dict | None = None
-    dialect_icd10_alignment: list
+    dialect_icd10_alignment: list = Field(default_factory=list)
     clinical_coherence_report: ClinicalCoherenceReport | None = None
     active_triage_question: str | None = None
     polypharmacy_intervention: PolypharmacyIntervention | None = None
     patient_dosage_card: str | None = None
-    grounded_medications: list
-    scan_biometrics: dict
+    grounded_medications: list = Field(default_factory=list)
+    scan_biometrics: dict = Field(default_factory=dict)
     judge_hud_summary: JudgeHudSummary
-    agent_execution_trace: List[AgentExecutionTraceItem]
+    agent_execution_trace: List[AgentExecutionTraceItem] = Field(default_factory=list)
