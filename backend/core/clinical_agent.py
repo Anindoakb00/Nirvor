@@ -26,8 +26,10 @@ You MUST return a STRICT JSON object that matches the following schema exactly:
 }
 """
 
+
 async def generate_clinical_insights(transcript: str, telemetry: dict) -> dict:
-    if not AIConfig.META_API_KEY or AIConfig.META_API_KEY.startswith("your_") or AIConfig.META_API_KEY == "unconfigured":
+    if not AIConfig.META_API_KEY or AIConfig.META_API_KEY.startswith(
+            "your_") or AIConfig.META_API_KEY == "unconfigured":
         raise RuntimeError("Meta API key is unconfigured for clinical reasoning.")
 
     messages = [
@@ -55,8 +57,20 @@ async def generate_clinical_insights(transcript: str, telemetry: dict) -> dict:
             print(f"Raw API response: {res.text}")
             res.raise_for_status()
             content = res.json()["choices"][0]["message"]["content"]
-            return json.loads(content)
+
+            # Robust JSON Markdown Stripping
+            cleaned_content = content.strip()
+            if cleaned_content.startswith("```json"):
+                cleaned_content = cleaned_content[7:]
+            if cleaned_content.startswith("```"):
+                cleaned_content = cleaned_content[3:]
+            if cleaned_content.endswith("```"):
+                cleaned_content = cleaned_content[:-3]
+
+            return json.loads(cleaned_content.strip())
+
     except Exception as e:
+        print(f"CRITICAL BACKEND ERROR: {str(e)}")  # Forces it to print in terminal
         return {
             "doctor_view": {
                 "clinical_summary": f"BACKEND ERROR: {str(e)}",
