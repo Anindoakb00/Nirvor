@@ -18,31 +18,26 @@ def system_status():
         "version": "0.0.3"
     }
 
-from models.schemas import CompleteIntakeResponse, ClinicalAnalysisResponse
-
-from core.meta_agent import transcribe_audio_meta
-from core.clinical_agent import generate_clinical_insights
+from models.schemas import CompleteIntakeResponse, ClinicalAnalysisResponse, CombinedIntakeResponse
 
 @router.post("/api/v2/intake/voice")
 async def intake_voice(
     audio: Optional[UploadFile] = File(None),
 ):
     audio_bytes = None
-    audio_filename = None
     if audio and audio.filename:
         audio_bytes = await audio.read()
-        audio_filename = audio.filename
 
     if not audio_bytes:
          raise HTTPException(status_code=400, detail="Missing audio file")
 
     try:
-        voice_intake = await transcribe_audio_meta(audio_bytes)
-        transcript = voice_intake.get("transcript", "") if voice_intake else ""
-        telemetry = {}
-        return await generate_clinical_insights(transcript, telemetry)
+        result, err = await orchestrator.run_voice_branch(audio_bytes)
     except Exception as e:
         return {"error": f"ROUTER CRASH: {str(e)}", "details": "Check terminal."}
+    if err is not None:
+        return {"error": f"ROUTER CRASH: {err}", "details": "Check terminal."}
+    return result
 
 @router.post("/api/v2/intake/prescription", response_model=CompleteIntakeResponse)
 async def intake_prescription(
@@ -76,6 +71,37 @@ async def intake_xray(
     try:
         return await orchestrator.process_xray(
             xray_bytes=xray_bytes
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/api/v2/intake/combined", response_model=CombinedIntakeResponse)
+async def intake_combined(
+    prescription: Optional[UploadFile] = File(None),
+    audio: Optional[UploadFile] = File(None),
+    xray_scan: Optional[UploadFile] = File(None),
+):
+    prescription_bytes = None
+    if prescription and prescription.filename:
+        prescription_bytes = await prescription.read()
+    audio_bytes = None
+    if audio and audio.filename:
+        audio_bytes = await audio.read()
+    xray_bytes = None
+    if xray_scan and xray_scan.filename:
+        xray_bytes = await xray_scan.read()
+
+    if not prescription_bytes and not audio_bytes and not xray_bytes:
+        raise HTTPException(
+            status_code=400,
+            detail="Missing input: provide at least one of prescription, audio, xray_scan",
+        )
+
+    try:
+        return await orchestrator.process_combined(
+            prescription_bytes=prescription_bytes,
+            audio_bytes=audio_bytes,
+            xray_bytes=xray_bytes,
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

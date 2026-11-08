@@ -1,3 +1,29 @@
-
-__pycache__
+__pycache__/
 *.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+
+# Virtual environments
+.venv/
+venv/
+.env/
+
+# Secrets - never commit real keys
+.env
+*.pem
+*.key
+
+# Patient / private data - never push to the public repo
+Prescribtions/
+backend/Voices/
+backend/Results/
+backend/Raw_Output/
+
+# IDE
+.idea/
+
+# Logs
+*.log

@@ -119,6 +119,42 @@
       "half_life_hours": 3.5,
       "nephrotoxic_risk": 0.40,
       "hepatotoxic_threshold_mg": 1200
+    },
+    {
+      "id": "BD_DIMS_011",
+      "brand_name": "Penvik 250",
+      "generic_name": "Phenoxymethylpenicillin 250mg",
+      "manufacturer": "Square Pharmaceuticals Ltd.",
+      "category": "Penicillin Antibiotic",
+      "bangla_phonetic_aliases": ["পেনভিক ২৫০", "penvik", "penvic", "পেনভিক"],
+      "prior_probability": 0.06,
+      "half_life_hours": 0.5,
+      "nephrotoxic_risk": 0.15,
+      "hepatotoxic_threshold_mg": 4000
+    },
+    {
+      "id": "BD_DIMS_012",
+      "brand_name": "Furoclav 250",
+      "generic_name": "Cefuroxime Axetil 250mg + Clavulanic Acid 62.5mg",
+      "manufacturer": "Renata Limited",
+      "category": "Cephalosporin + Clavulanate Antibiotic",
+      "bangla_phonetic_aliases": ["ফুরোক্লাভ ২৫০", "furoclav", "furoclab", "ফুরোক্লাভ"],
+      "prior_probability": 0.06,
+      "half_life_hours": 1.5,
+      "nephrotoxic_risk": 0.35,
+      "hepatotoxic_threshold_mg": 1500
+    },
+    {
+      "id": "BD_DIMS_013",
+      "brand_name": "Lasix 20mg/2ml",
+      "generic_name": "Furosemide 20mg/2ml",
+      "manufacturer": "Sanofi Bangladesh Ltd.",
+      "category": "Loop Diuretic",
+      "bangla_phonetic_aliases": ["ল্যাসিক্স", "lasix", "laxis", "ল্যাসিক্স ইনজেকশন"],
+      "prior_probability": 0.05,
+      "half_life_hours": 2.0,
+      "nephrotoxic_risk": 0.50,
+      "hepatotoxic_threshold_mg": 600
     }
   ],
   "dialect_symptom_lexicon": [

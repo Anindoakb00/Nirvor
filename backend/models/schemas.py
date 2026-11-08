@@ -33,6 +33,8 @@ class PolypharmacyIntervention(BaseModel):
   clinical_mechanism: str
   recommended_action: str
   bangla_patient_warning: str
+  verified_medications_assessed: int = 0
+  unverified_medications_skipped: int = 0
 
 
 class ClinicalCoherenceReport(BaseModel):
@@ -57,6 +59,14 @@ class JudgeHudSummary(BaseModel):
     active_verification_flags: int
 
 
+class ReferralTelemetry(BaseModel):
+    top_referral_match_score: float
+    referral_source_file: str
+    referral_verified: bool
+    referral_medications: str
+    referral_confidence: Literal["Low", "Medium", "High"]
+
+
 class CompleteIntakeResponse(BaseModel):
     status: str
     error_details: Optional[List[str]] = None
@@ -69,6 +79,7 @@ class CompleteIntakeResponse(BaseModel):
     patient_dosage_card: str | None = None
     grounded_medications: list = Field(default_factory=list)
     scan_biometrics: dict = Field(default_factory=dict)
+    referral_telemetry: ReferralTelemetry | None = None
     judge_hud_summary: JudgeHudSummary
     agent_execution_trace: List[AgentExecutionTraceItem] = Field(default_factory=list)
 
@@ -91,3 +102,24 @@ class PatientView(BaseModel):
 class ClinicalAnalysisResponse(BaseModel):
     doctor_view: DoctorView
     patient_view: PatientView
+
+
+class CrossModalFusion(BaseModel):
+    modalities_present: List[str]
+    modalities_succeeded: List[str]
+    voice_confidence: Optional[float] = None
+    prescription_confidence: Optional[float] = None
+    xray_biometrics_present: bool = False
+    fused_confidence: float
+    overall_risk: Literal["Low", "Medium", "High"]
+    is_coherent: bool
+    agreement_notes: List[str] = Field(default_factory=list)
+
+
+class CombinedIntakeResponse(BaseModel):
+    status: str
+    error_details: Optional[List[str]] = None
+    voice: Optional[ClinicalAnalysisResponse] = None
+    prescription: Optional[CompleteIntakeResponse] = None
+    xray: Optional[CompleteIntakeResponse] = None
+    cross_modal_fusion: Optional[CrossModalFusion] = None

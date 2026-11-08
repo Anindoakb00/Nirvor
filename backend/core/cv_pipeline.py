@@ -151,8 +151,8 @@ class ClinicalCVPreprocessor:
 
     angles = []
     if lines is not None:
-      for line in lines:
-        x1, y1, x2, y2 = line[0]
+      for line in lines.reshape(-1, 4):
+        x1, y1, x2, y2 = line
         angle_deg = np.degrees(np.arctan2(y2 - y1, x2 - x1))
         # Filter for near-horizontal text lines (-30 deg to +30 deg)
         if -30.0 <= angle_deg <= 30.0:

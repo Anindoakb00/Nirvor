@@ -17,6 +17,7 @@ from core.prompts import (
     build_wonder_escalation_prompt,
 )
 from config.settings import AIConfig
+from core.dosage_card import parse_dosage_summary, render_dosage_card_png
 from core.polypharmacy import PolypharmacyGraph
 
 load_dotenv()
@@ -94,10 +95,38 @@ async def generate_entropy_triage_question(
 async def escalate_polypharmacy_wonder(
     pk_summary: Dict[str, Any], patient_vitals: Dict[str, Any]
 ) -> Dict[str, Any]:
-  """Escalates critical pharmacokinetic toxicity by querying the deterministic PolypharmacyGraph."""
+  """Escalates critical pharmacokinetic toxicity by querying the deterministic PolypharmacyGraph.
+
+  Only verified medication matches are assessed. Unverified matches are
+  excluded and counted so an interaction check is never "clean" on the
+  basis of flagged guesses.
+  """
   graph = PolypharmacyGraph()
   medications = pk_summary.get("medications", [])
-  result = graph.check_interaction(medications)
+  flags = pk_summary.get("requires_verification", [False] * len(medications))
+  verified = [m for m, f in zip(medications, flags) if not f]
+  skipped = len(medications) - len(verified)
+  if medications and not verified:
+    return {
+        "risk_level": "MODERATE",
+        "clinical_mechanism": (
+            f"Polypharmacy assessment deferred: all {len(medications)} medication "
+            "matches require pharmacist verification; no verified drugs to assess."
+        ),
+        "recommended_action": "Verify the flagged medications before any interaction assessment.",
+        "bangla_patient_warning": "যাচাই না হওয়া পর্যন্ত ওষুধের মিথস্ক্রিয়া মূল্যায়ন করা যায়নি। ফার্মাসিস্টের পরামর্শ নিন।",
+        "provider_used": "deterministic_graph",
+        "verified_medications_assessed": 0,
+        "unverified_medications_skipped": skipped,
+    }
+  result = graph.check_interaction(verified)
+  result["verified_medications_assessed"] = len(verified)
+  result["unverified_medications_skipped"] = skipped
+  if skipped:
+    result["clinical_mechanism"] += (
+        f" Assessment covers {len(verified)} of {len(medications)} "
+        f"medications; {skipped} unverified excluded."
+    )
   return result
 
 
@@ -133,7 +162,7 @@ async def segment_medical_scan_sam3(
 
 
 async def transcribe_audio_meta(audio_bytes: bytes) -> Dict[str, Any]:
-  """Transcribes regional Bangladeshi audio via Meta's Muse Voice Transcribe."""
+  """Transcribes audio via Meta Muse Voice (POST {base}/asr/transcribe, parts request+audio)."""
   if not _is_configured(AIConfig.META_API_KEY):
     raise RuntimeError("Meta API key is unconfigured for transcription.")
 
@@ -145,8 +174,8 @@ async def transcribe_audio_meta(audio_bytes: bytes) -> Dict[str, Any]:
     wav_bytes = wav_io.getvalue()
 
     files_payload = {
-        "request": (None, '{"model":"muse-voice-transcribe-1.0","audioEncoding":"WAV","mode":"PUSH_TO_TALK"}', "application/json"),
-        "file": ("recording.wav", wav_bytes, "audio/wav")
+        "request": (None, json.dumps({"model": AIConfig.META_VOICE_MODEL, "audioEncoding": "WAV", "mode": "PUSH_TO_TALK"}), "application/json"),
+        "audio": ("recording.wav", wav_bytes, "audio/wav")
     }
 
     headers = {
@@ -155,37 +184,31 @@ async def transcribe_audio_meta(audio_bytes: bytes) -> Dict[str, Any]:
     }
     async with httpx.AsyncClient(timeout=45.0) as client:
       res = await client.post(
-          f"{AIConfig.META_BASE_URL}/audio/transcriptions",
+          f"{AIConfig.META_BASE_URL.rstrip('/')}/asr/transcribe",
           files=files_payload,
           headers=headers,
       )
       res.raise_for_status()
-      return {"transcript": res.json().get("text", ""), "provider_used": "meta_api"}
+      body = res.json()
+      return {
+          "transcript": body.get("transcript", ""),
+          "sessionId": body.get("sessionId", ""),
+          "audioDurationMs": body.get("audioDurationMs", 0),
+          "turns": body.get("turns", []),
+          "provider_used": "meta_api",
+      }
   except Exception as exc:
-    raise RuntimeError(f"Transcription failed: {exc}")
+    raise RuntimeError(f"Transcription failed: {exc} | model={AIConfig.META_VOICE_MODEL} | meta_body={getattr(getattr(exc, 'response', None), 'text', '')[:500]}")
 
 
 async def generate_patient_dosage_card(medications_summary: str) -> Dict[str, Any]:
-  """Generates a visual dosage card via Meta's Muse Image 1.0."""
-  if not _is_configured(AIConfig.META_API_KEY):
-    raise RuntimeError("Meta API key is unconfigured for dosage card generation.")
+  """Renders the patient dosage card locally as a PNG data URI.
 
-  try:
-    payload = {
-        "model": AIConfig.META_IMAGE_MODEL,
-        "prompt": (
-            "Clean medical infographic dosage schedule card with sun, noon, and"
-            f" moon icons for: {medications_summary}"
-        ),
-    }
-    headers = {"Authorization": f"Bearer {AIConfig.META_API_KEY}"}
-    async with httpx.AsyncClient(timeout=45.0) as client:
-      res = await client.post(
-          f"{AIConfig.META_BASE_URL}/images/generations",
-          json=payload,
-          headers=headers,
-      )
-      res.raise_for_status()
-      return {"url": res.json()["data"][0].get("url", ""), "provider_used": "meta_api"}
-  except Exception as exc:
-    raise RuntimeError(f"Dosage card generation failed: {exc}")
+  Meta's image model refuses medication prompts by content policy, so no
+  network call is made: the card is drawn deterministically with PIL and
+  returned inline, usable directly as an <img> source.
+  """
+  rows = parse_dosage_summary(medications_summary or "")
+  png = render_dosage_card_png(rows)
+  uri = "data:image/png;base64," + base64.b64encode(png).decode("ascii")
+  return {"url": uri, "provider_used": "local_renderer"}

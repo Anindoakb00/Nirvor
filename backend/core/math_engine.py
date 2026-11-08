@@ -151,7 +151,9 @@ class ClinicalMathEngine:
               "clinical_term": item["clinical_term"],
               "icd10_code": item["icd10_code"],
               "dialect_region": item["dialect_region"],
-              "embedding": item["_vec"].tolist()
+              "embedding": item["_vec"].tolist(),
+              "source_file": "dims_drug_db.json",
+              "verified": True
           })
 
     if self.supabase and records_to_insert:
@@ -342,6 +344,7 @@ class ClinicalMathEngine:
         "raw_ocr_input": ocr_drug_string,
         "matched_drug": public_drug_view,
         "bayesian_posterior_confidence": round(top_posterior, 4),
+        "cos_voice": best_candidate["cos_voice"],
         "shannon_entropy_bits": round(shannon_entropy, 4),
         "ocr_typo_corrected": (
             clean_ocr.lower() != best_drug["_clean_brand"].lower()
@@ -371,18 +374,37 @@ class ClinicalMathEngine:
   def verify_symptom_medication_coherence(
       self,
       dialect_symptoms: List[Dict[str, Any]],
-      grounded_medications: List[Dict[str, Any]]
+      grounded_medications: List[Dict[str, Any]],
+      xray_flags: Optional[List[str]] = None,
   ) -> Dict[str, Any]:
-    """Cross-checks aligned dialect ICD-10 symptoms against grounded medication categories."""
+    """Cross-checks aligned dialect ICD-10 symptoms against grounded medication categories.
+
+    Only verified medication matches count: unverified matches are excluded
+    and reported, so coherence is never "proven" by a flagged guess.
+    """
     is_coherent = True
     contradiction_flags = []
     matched_indications = []
     coherence_score = 1.0
 
+    verified_meds = [
+        m for m in grounded_medications
+        if not m.get("requires_active_verification", False)
+    ]
+    unverified_count = len(grounded_medications) - len(verified_meds)
+    if unverified_count:
+        contradiction_flags.append(
+            f"{unverified_count} of {len(grounded_medications)} medication matches "
+            "require verification - coherence assessed on verified matches only."
+        )
+    if grounded_medications and not verified_meds:
+        is_coherent = False
+        coherence_score = 0.0
+
     symptom_codes = [s.get("icd10_code") for s in dialect_symptoms]
 
     # Check for specific contradictions like respiratory symptoms with GI drugs (example logic based on description)
-    has_gi_drug = any("Proton Pump Inhibitor" in m.get("matched_drug", {}).get("category", "") for m in grounded_medications)
+    has_gi_drug = any("Proton Pump Inhibitor" in m.get("matched_drug", {}).get("category", "") for m in verified_meds)
     has_gi_symptom = any("K21.9" in c or "R10.13" in c for c in symptom_codes if c)
     has_resp_symptom = any("R06.02" in c for c in symptom_codes if c)
 
@@ -395,11 +417,146 @@ class ClinicalMathEngine:
     if has_gi_drug and has_gi_symptom:
         matched_indications.append("Gastric symptoms correctly map to GI medication.")
 
+    # Cross-modal agreement: measured X-ray flags align with symptom codes.
+    # Agreement only adds indications; it never flips coherence to False.
+    flags = {str(f).lower() for f in (xray_flags or [])}
+    if "cardiomegaly" in flags:
+        cardiac_codes = ("R07.9", "I20", "I21", "I25", "I50")
+        if any(
+            any(code in (c or "") for code in cardiac_codes)
+            for c in symptom_codes
+        ):
+            matched_indications.append(
+                "Cardiac-type symptoms align with cardiomegaly on X-ray (CTR > 0.50)."
+            )
+
     return {
         "is_coherent": is_coherent,
         "coherence_score": round(coherence_score, 4),
         "matched_indications": matched_indications,
         "contradiction_flags": contradiction_flags
+    }
+
+  @staticmethod
+  def build_verification_telemetry(
+      matches: List[Dict[str, Any]],
+  ) -> Dict[str, Any]:
+    """Builds measured anti-hallucination telemetry from vector matches.
+
+    The score is the top retrieval cosine similarity and risk follows fixed
+    thresholds, so the LLM never grades its own grounding.
+    """
+    score = 0.0
+    source = ""
+    if matches:
+      top = matches[0] or {}
+      try:
+        score = float(top.get("phonetic_cosine_similarity", 0.0))
+      except (TypeError, ValueError):
+        score = 0.0
+      if score != score:
+        score = 0.0
+      source = top.get("clinical_translation") or top.get("matched_idiom") or ""
+    if score < 0.25:
+      risk = "High"
+      source = ""
+    elif score >= 0.6:
+      risk = "Low"
+    else:
+      risk = "Medium"
+    return {
+        "primary_vector_match_score": round(score, 4),
+        "grounding_source_text": source,
+        "hallucination_risk_status": risk,
+    }
+
+  @staticmethod
+  def build_medication_blob(medications: List[Dict[str, Any]]) -> str:
+    """Builds the canonical medication blob embedded for referral matching.
+
+    Shared by the bulk importer and the live prescription branch so both
+    embed the exact same string form. Pure: no DB, no network.
+    """
+    parts = []
+    for med in medications or []:
+      raw = (med.get("raw_text") or "").strip()
+      if raw:
+        parts.append(raw)
+    return " | ".join(parts)
+
+  def match_prescription_referrals(
+      self, medication_blob: str, top_k: int = 3
+  ) -> List[Dict[str, Any]]:
+    """Retrieves the most similar past prescriptions from pgvector.
+
+    Returns [] when Supabase is unconfigured, the table is empty, or the
+    RPC fails - the prescription branch treats that as "no referrals".
+    """
+    if not medication_blob:
+      return []
+    q_vec = self.text_to_embedding(medication_blob)
+
+    if self.supabase:
+        try:
+            res = self.supabase.rpc("match_prescriptions", {
+                "query_embedding": q_vec.tolist(),
+                "match_threshold": 0.0,
+                "match_count": top_k
+            }).execute()
+
+            if res.data:
+                scored = []
+                for item in res.data:
+                    scored.append({
+                        "source_file": item.get("source_file", ""),
+                        "medication_blob": item.get("medication_blob", ""),
+                        "med_count": item.get("med_count", 0),
+                        "verified": bool(item.get("verified", False)),
+                        "referral_cosine_similarity": round(1 - item.get("similarity", 0.0), 4),
+                    })
+                return scored
+        except Exception as e:
+            print(f"[Supabase] Warning: prescription referral retrieval failed: {e}")
+
+    return []
+
+  @staticmethod
+  def build_referral_telemetry(
+      matches: List[Dict[str, Any]],
+  ) -> Dict[str, Any]:
+    """Builds honest similar-case telemetry from referral matches.
+
+    The score is the top retrieval cosine similarity; the verified flag is
+    passed through untouched so unverified referrals are never presented
+    as grounding truth.
+    """
+    score = 0.0
+    source_file = ""
+    verified = False
+    medications = ""
+    if matches:
+      top = matches[0] or {}
+      try:
+        score = float(top.get("referral_cosine_similarity", 0.0))
+      except (TypeError, ValueError):
+        score = 0.0
+      if score != score:
+        score = 0.0
+      source_file = top.get("source_file", "")
+      verified = bool(top.get("verified", False))
+      medications = top.get("medication_blob", "")
+    if score < 0.25:
+      confidence = "Low"
+    elif score >= 0.6:
+      confidence = "High"
+    else:
+      confidence = "Medium"
+    return {
+        "top_referral_match_score": round(score, 4),
+        "referral_source_file": source_file,
+        "referral_verified": verified,
+        "referral_medications": medications,
+        "referral_confidence": confidence,
     }
 
   def align_regional_dialect_symptoms(
@@ -436,7 +593,23 @@ class ClinicalMathEngine:
         except Exception as e:
             print(f"[Supabase] Warning: pgvector retrieval failed: {e}")
 
-    return []
+    scored_local: List[Dict[str, Any]] = []
+    for item in self.dialect_lexicon:
+      vec = item.get("_vec")
+      if vec is None:
+        continue
+      sim = self.compute_cosine_similarity(q_vec, vec)
+      scored_local.append({
+          "dialect_region": item.get("dialect_region", ""),
+          "matched_idiom": item.get("dialect_phrase", ""),
+          "clinical_translation": item.get("clinical_term", ""),
+          "icd10_code": item.get("icd10_code", ""),
+          "phonetic_cosine_similarity": round(float(sim), 4),
+      })
+    scored_local.sort(
+        key=lambda d: d["phonetic_cosine_similarity"], reverse=True
+    )
+    return scored_local[:max(top_k, 0)]
 
   @staticmethod
   def calculate_cardiothoracic_ratio(

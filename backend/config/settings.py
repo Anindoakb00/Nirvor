@@ -1,7 +1,7 @@
 import os
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env"))
 
 class AIConfig:
     """Centralized configuration loaded from backend/.env"""
@@ -18,12 +18,12 @@ class AIConfig:
         "META_SPARK_MODEL", "muse-spark-1.3-contributor"
     )
     META_WONDER_MODEL = os.getenv("META_WONDER_MODEL", "muse-wonder")
-    META_VOICE_MODEL = os.getenv("META_VOICE_MODEL", "muse-voice-transcribe")
+    META_VOICE_MODEL = os.getenv("META_VOICE_MODEL", "muse-voice-transcribe-1.0")
     META_IMAGE_MODEL = os.getenv("META_IMAGE_MODEL", "muse-image-1.0")
     META_SAM_MODEL = os.getenv("META_SAM_MODEL", "sam-3.1")
 
     USE_MODAL_CLOUD_CV = os.getenv("USE_MODAL_CLOUD_CV", "false").lower() == "true"
     MODAL_TOKEN_EXISTS = os.path.exists(os.path.expanduser("~/.modal.toml"))
 
-    SUPABASE_URL = os.getenv("SUPABASE_URL", "")
-    SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
+    SUPABASE_URL = os.getenv("SUPABASE_URL", "") or os.getenv("NEXT_PUBLIC_SUPABASE_URL", "")
+    SUPABASE_KEY = os.getenv("SUPABASE_KEY", "") or os.getenv("SUPABASE_SERVICE_KEY", "") or os.getenv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "")
