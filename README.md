@@ -8,89 +8,90 @@
 
 ## Endpoints
 
-| Method | Path                      | Purpose                                                        |
-|--------|---------------------------|----------------------------------------------------------------|
-| GET    | `/`                       | Health check                                                   |
-| POST   | `/api/v2/intake-pipeline` | Prescription image (required) + voice audio / X-ray (optional) |
+| Method | Path                      | Request (multipart)                                        | Response |
+|--------|---------------------------|------------------------------------------------------------|----------|
+| GET    | `/`                       | —                                                          | Health JSON (`status`, `engine`, `team`) |
+| POST   | `/api/v2/intake-pipeline` | `prescription` (required), `audio` + `xray_scan` (optional) | Consolidated intake JSON (grounded meds, alignment, biometrics, telemetry) |
 
-Everything is wired directly in `backend/main.py` (no router split yet).
+Example:
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/v2/intake-pipeline \
+  -F "prescription=@rx.jpg" -F "audio=@note.mp3"
+```
+
+Pipeline flow:
+
+```text
+client → main.py → CV cleanup → ┬─ voice transcription ─┐
+                                └─ SAM 3.1 segmentation ┘
+       → dialect alignment → LLM extraction → per-drug Bayesian grounding
+       → CTR / lesion biometrics → one JSON response
+```
 
 ## Math engine — `core/math_engine.py` (`ClinicalMathEngine`, ~393 lines)
 
-All of this is real NumPy math on CPU (audited in `MATH_IMPLEMENTATION.md`
-on later branches):
+All real NumPy math on CPU (audited in `MATH_IMPLEMENTATION.md` on later
+branches):
 
-- `to_phonetic_skeleton()` — strips vowels / non-letters into a phonetic
-  signature, with Bangla→English normalization.
-- `text_to_embedding()` — hashes character 2-grams/3-grams (original +
-  phonetic) via `hashlib.md5` into a **512-dim L2-normalized vector**
-  (index = hash bytes mod 512, sign = byte parity). Drug DB vectors are
-  precomputed once at startup.
-- `compute_cosine_similarity()` — `dot(a,b)/(norm_a*norm_b)` linear scan for
-  closest drug match. No vector DB needed.
-- `weighted_cursive_levenshtein()` — real 2D dynamic-programming edit
-  distance with float costs (0.8 insert/delete; down to 0.15 for cursive
-  confusion pairs like `l`/`i`, `m`/`n`).
+- `to_phonetic_skeleton()` — phonetic signature with Bangla→English
+  normalization.
+- `text_to_embedding()` — char 2/3-gram hashing via `hashlib.md5` into a
+  **512-dim L2-normalized vector**; drug DB vectors precomputed at startup.
+- `compute_cosine_similarity()` — dot-product scan, no vector DB needed.
+- `weighted_cursive_levenshtein()` — 2D DP edit distance with float costs
+  (0.8 insert/delete; ~0.15 for cursive pairs like `l`/`i`, `m`/`n`).
 - `ground_drug_entity()` — **Bayesian cross-modal fusion**: energy score
-  from OCR similarity + voice similarity + Levenshtein → numerically stable
-  softmax (`log(prior) + temperature*score`, max-shift, `exp`) → true
-  posterior distribution + **Shannon entropy bits** (`-Σ P·log2(P)`).
-- `align_regional_dialect_symptoms()` — phonetic cosine match of transcripts
-  to ICD-10 symptoms in the dialect lexicon.
-- `calculate_cardiothoracic_ratio()` — CTR from heart/thorax mask bounding
-  boxes (`np.where(mask > 0)`).
-- `analyze_mask_eigen_geometry()` — 2D PCA on lesion masks: centroid,
-  `np.cov()` 2×2 covariance, `np.linalg.eigh()` eigenvalues + eccentricity.
+  (OCR + voice + Levenshtein) → stable softmax → posterior distribution +
+  **Shannon entropy bits** (`-Σ P·log2(P)`).
+- `align_regional_dialect_symptoms()` — transcript → ICD-10 symptoms via
+  phonetic cosine match.
+- `calculate_cardiothoracic_ratio()` — CTR from mask bounding boxes.
+- `analyze_mask_eigen_geometry()` — lesion PCA: centroid, covariance,
+  eigendecomposition, eccentricity.
 
-## CV pipeline — `core/cv_preprocessing.py` (~248 lines)
+## CV + voice + model clients
 
-`ClinicalCVPreprocessor`: illumination/shadow removal (morphological
-background estimate + ink reflectance + CLAHE), document corner finding
-(Canny + contours), deskew via SVD homography (Hartley-normalized points),
-Probabilistic-Hough skew fallback, then a Base64 PNG data URI plus geometry
-telemetry for the LLM step.
+- `core/cv_preprocessing.py` (~248 lines): shadow removal, SVD-homography
+  deskew (Hartley-normalized), Hough skew fallback, CLAHE → Base64 data URI
+  + geometry telemetry.
+- `core/audio_processor.py`: Meta transcription; Chittagonian mock fallback.
+- `core/meta_client.py` (193 lines), 6 async functions: multimodal
+  extraction (Baseten → Meta), entropy triage questions, polypharmacy
+  escalation, SAM 3.1 segmentation (OpenCV-mask fallback), audio
+  transcription, dosage-card URL. All `DEFAULT_*` fixture-backed offline.
 
-## Voice + model clients — `core/audio_processor.py`, `core/meta_client.py`
+## What we gained in this version
 
-- `process_regional_voice_note()` — Meta transcription API; falls back to a
-  hardcoded Chittagonian mock transcript offline.
-- `meta_client.py` (193 lines) — 6 async functions: prescription multimodal
-  extraction (Baseten → Meta fallback), entropy triage-question generation,
-  polypharmacy escalation, SAM 3.1 scan segmentation (OpenCV-threshold mask
-  fallback), Meta audio transcription, dosage-card image URL. Every one has
-  a `DEFAULT_*` fixture fallback so the pipeline runs with no keys.
+- First **end-to-end proof**: photo + voice + scan in, grounded clinical
+  JSON out.
+- The **entire neuro-symbolic math core** (embeddings → Bayes → entropy →
+  biometrics) that every later version reuses untouched.
+- Offline resilience pattern: fixtures for every external call.
+- Baseten + Meta + SAM + Modal integrations proven with test scripts.
 
 ## Accuracy & trust — honest notes
 
-- Per-drug **Bayesian posterior + entropy bits** are returned with every
-  grounding; high entropy drives a triage question.
-- There is **no measured accuracy benchmark** on this branch (no eval set,
-  no scoring script) — validation is the three test scripts plus fixture
-  runs. Any accuracy number would have to come from a labeled prescription
-  set, which doesn't exist in the repo.
-- Offline runs return fixture data (clearly fixture-shaped), never fake
-  confidence.
+- Per-drug **posterior + entropy bits**; high entropy drives triage.
+- **No measured accuracy benchmark** (no eval set/scoring script) —
+  validation is the test scripts + fixture runs.
+- Offline runs return clearly fixture-shaped data, never fake confidence.
 
 ## Project layout (this branch)
 
 ```text
 backend/
-  main.py                # FastAPI app + the /api/v2/intake-pipeline endpoint
+  main.py                # app + endpoint (single-file style)
   requirements.txt       # base deps (below)
-  .env.example           # copy to .env and fill in keys (never commit .env)
+  .env.example           # copy to .env (never commit .env)
   core/
-    audio_processor.py   # regional voice-note transcription
-    cv_preprocessing.py  # prescription cleanup + telemetry
-    math_engine.py       # the math above
-    meta_client.py       # Baseten/Meta/SAM wrappers + fixtures
-    modal_worker.py      # Modal cloud worker (isolated; not called by main flow)
-    prompts.py           # model prompts
-    schemas.py           # request/response models
+    audio_processor.py cv_preprocessing.py math_engine.py
+    meta_client.py modal_worker.py prompts.py schemas.py
   database/
-    dims_drug_db.json    # Bangladeshi drug reference data
+    dims_drug_db.json    # Bangladeshi drug reference
     fallback_fixtures.py # offline fixtures + OpenCV fallback masks
   test_baseten.py test_cloud_cv.py test_modal.py
-test_api.py              # repo-level API smoke test
+test_api.py
 ```
 
 ## Setup
@@ -107,10 +108,9 @@ copy .env.example .env
 python -m uvicorn main:app --reload --port 8000
 ```
 
-Docs at http://127.0.0.1:8000/docs.
-
-Dependencies: FastAPI, Uvicorn, Pydantic v2, NumPy, SciPy, OpenCV
-(headless), Pillow, httpx/requests, python-multipart, python-dotenv, Modal.
+Docs at http://127.0.0.1:8000/docs. Deps: FastAPI, Uvicorn, Pydantic v2,
+NumPy, SciPy, OpenCV (headless), Pillow, httpx/requests, python-multipart,
+python-dotenv, Modal.
 
 ## Tests
 
@@ -121,11 +121,16 @@ python test_cloud_cv.py
 python test_modal.py
 ```
 
+## What's next (delivered in v0.0.2)
+
+- Extract the endpoint into an intake router + orchestrator agent.
+- Split config, schemas, and pipelines into packages (`config/`, `models/`).
+- Same math, same API surface — pure architecture upgrade.
+
 ## Notes
 
 - No frontend — use `/docs`, cURL, or `test_api.py`.
 - Never commit `backend/.env`. Voice/prescription files are patient data.
-- Next: `v-0.0.2` keeps this math identical and wraps it in agents.
 
 Other versions: `main`, `v-0.0.1`, `v-0.0.2`, `v-0.0.3`.
 
