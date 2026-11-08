@@ -8,82 +8,100 @@
 
 ## Added in this version (vs `main`)
 
-- **Combined intake** — `POST /api/v2/intake/combined` → new
-  `process_combined()` + `_build_cross_modal_fusion()`: voice branch and
-  prescription branch run through shared helpers (`_transcribe_and_align`,
-  `_clinical_insights_with_telemetry`, `_rx_branch`, `_xray_branch`,
-  `_xray_flags_and_summary`) and fuse into one `CombinedIntakeResponse`.
-  Orchestrator grows to 13 methods.
+- **Combined intake** — `POST /api/v2/intake/combined` → `process_combined()`
+  + `_build_cross_modal_fusion()`: voice and prescription branches share
+  helpers (`_transcribe_and_align`, `_clinical_insights_with_telemetry`,
+  `_rx_branch`, `_xray_branch`, `_xray_flags_and_summary`) and fuse into
+  one `CombinedIntakeResponse`. Orchestrator grows to 13 methods.
 - **Dosage card, drawn locally** (`core/dosage_card.py`): Meta's image model
-  refuses medication prompts by content policy, so the card is rendered
-  offline with Pillow — `parse_dosage_summary()` → `CardRow` list →
-  `render_dosage_card_png()` (900px card, auto-fit fonts, zebra rows;
-  columns Medicine / Morning / Noon / Night / Schedule with `1+0+1` dose
-  patterns). Exact drug names, no network, no cost. English headers: PIL
-  can't shape Bangla script. This fixes the Section 4 bug where
-  `patient_dosage_card` came back `null` with a 400 in `error_details`.
+  refuses medication prompts by policy, so the card renders offline with
+  Pillow — `parse_dosage_summary()` → `CardRow` → `render_dosage_card_png()`
+  (900px, auto-fit fonts, zebra rows; Medicine / Morning / Noon / Night /
+  Schedule with `1+0+1` patterns). Exact names, no network, no cost.
+  English headers (PIL can't shape Bangla). Fixes the Section 4 bug where
+  `patient_dosage_card` was `null` + 400 in `error_details`.
 - **Math +4**: `build_verification_telemetry()`, `build_medication_blob()`,
-  `match_prescription_referrals()`, `build_referral_telemetry()` —
-  referral matching and structured verification telemetry builders.
-- **Supabase grounding**: `database/supabase_migrations/001_symptoms.sql` +
-  `002_prescription_referrals.sql`, importers
-  (`import_prescription_referrals.py`, `import_verified_lexicon.py`), and
-  `SUPABASE_URL` / `SUPABASE_KEY` in `.env.example`.
-- **Gating tests**: `test_verification_gating.py` enforces coherence
-  (`is_coherent`, `coherence_score`, `contradiction_flags` like "require
-  verification" / "1 of 2") and safety gating where
-  `unverified_medications_skipped` are excluded from assessment and counted
-  separately from `verified_medications_assessed`.
-- **Nov 5–7 fixes**: clinical agent ensures all data reaches both
-  doctor and patient views; meta-agent intake fixes; `pillow` in the
-  backend venv; 11 backend tests total.
-- **Hygiene**: `.gitignore` blocks secrets + patient data; IDE files and
-  logs untracked.
+  `match_prescription_referrals()`, `build_referral_telemetry()`.
+- **Supabase grounding**: migrations `001_symptoms.sql` +
+  `002_prescription_referrals.sql`, importers, `SUPABASE_URL`/`SUPABASE_KEY`.
+- **Gating tests**: coherence enforced (`is_coherent`, `coherence_score`,
+  flags like "require verification" / "1 of 2"); safety gating counts
+  `verified_medications_assessed` vs `unverified_medications_skipped`.
+- **Nov 5–7 fixes**: clinical agent feeds both doctor + patient views,
+  meta-agent intake fixes, `pillow` in backend venv, 11 backend tests.
+- **Hygiene**: `.gitignore` blocks secrets + patient data; IDE/logs
+  untracked.
 
 ## Endpoints
 
-| Method | Path                              | Purpose                                |
-|--------|-----------------------------------|----------------------------------------|
-| GET    | `/health`                         | Liveness check                         |
-| GET    | `/api/v2/system-status`           | Engine / configuration status          |
-| POST   | `/api/v2/intake/voice`            | Voice note → clinical analysis         |
-| POST   | `/api/v2/intake/prescription`     | Prescription image → full intake       |
-| POST   | `/api/v2/intake/xray`             | X-ray scan → full intake               |
-| POST   | `/api/v2/intake/combined`         | Voice + prescription → combined intake |
-| GET    | `/`                               | Static dashboard (test UI)             |
+| Method | Path                          | Request (multipart files) |
+|--------|-------------------------------|---------------------------|
+| GET    | `/health`                     | Liveness check            |
+| GET    | `/api/v2/system-status`       | Engine / config status    |
+| POST   | `/api/v2/intake/voice`        | `audio` → clinical analysis |
+| POST   | `/api/v2/intake/prescription` | `prescription` → full intake incl. dosage card |
+| POST   | `/api/v2/intake/xray`         | `xray_scan` → full intake |
+| POST   | `/api/v2/intake/combined`     | `prescription` + `audio` (+`xray_scan`) → fused intake |
+| GET    | `/`                           | Dashboard (test UI)       |
 
-Interactive API docs at `/docs` (served alongside the dashboard).
+Response envelope: `status`, branch payloads (`doctor_view` /
+`patient_view`, grounded meds, telemetry, `patient_dosage_card`),
+`error_details` per failed step. Docs at `/docs`.
+
+Example:
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/v2/intake/combined \
+  -F "prescription=@rx.jpg" -F "audio=@note.mp3"
+```
+
+Flow (combined):
+
+```text
+client → process_combined → ┬ voice branch (transcribe → align → insights)
+                            └ prescription branch (CV → extract → ground)
+       → cross-modal fusion → referrals + verification telemetry
+       → dosage-card render → safety graph → privacy scrub → response
+```
 
 ## Math engine — 15 methods
 
-v0.0.1's 10 (embeddings, cosine, cursive Levenshtein, Bayesian posterior +
-entropy, dialect alignment, CTR, lesion PCA) + `main`'s coherence check +
-the 4 telemetry/referral builders above. Audit: `MATH_IMPLEMENTATION.md`.
+v0.0.1's 10 + `main`'s coherence check + the 4 telemetry/referral builders.
+Audit: `MATH_IMPLEMENTATION.md`. Response models (15 in
+`models/schemas.py`): intake, combined/fusion, coherence, verification +
+referral telemetry, doctor/patient views, judge HUD, execution trace.
+
+## What we gained in this version
+
+- **True multimodality**: voice + prescription + xray fuse in one call with
+  a shared telemetry story.
+- **A real patient artifact**: the dosage card is now data + rendered PNG,
+  not a placeholder URL — the product's visible output.
+- **Test-enforced trust**: gating tests assert exact coherence flags and
+  force unverified meds out of safety assessment.
+- **Production footing**: migrations, importers, secret hygiene, 11 tests.
 
 ## Accuracy & trust — honest notes
 
-- Strongest branch for trust: coherence scoring is **test-enforced**
-  (gating tests assert exact flags/scores), unverified meds are explicitly
-  skipped from safety assessment rather than silently passed, and every
-  branch reports `error_details` on partial failure.
-- Still **no measured accuracy benchmark** (no labeled eval set). The
-  dosage-card fix was verified by rendering (`dosage_card_sample.png`-style
-  output) and the Section 4 re-test comparison, not by a metric.
-- Same standing caveats as `main`: fixture-backed offline paths, 2-rule
-  polypharmacy graph, isolated Modal worker.
+- Strongest branch: coherence is test-enforced, unverified meds are
+  explicitly skipped (counted, not hidden), partial failures are named.
+- **Still no measured accuracy benchmark** — the card fix was verified by
+  rendering + Section 4 re-test comparison, not a metric. The eval set is
+  the next trust milestone (see below).
+- Standing caveats: fixture-backed offline paths, 2-rule graph, isolated
+  Modal worker.
 
 ## Project layout (additions vs `main`)
 
 ```text
 backend/
-  core/dosage_card.py              # local PIL dosage-card renderer
+  core/dosage_card.py
   database/
-    supabase_migrations/
-      001_symptoms.sql  002_prescription_referrals.sql
+    supabase_migrations/001_symptoms.sql  002_prescription_referrals.sql
     import_prescription_referrals.py  import_verified_lexicon.py
   test_dosage_card.py test_combined_intake.py test_verification_gating.py
   test_vector_ingest.py test_clinical_prompt.py test_prescription_referrals.py
-  test_cv_pipeline.py   (+ test_api/baseten/cloud_cv/modal)
+  test_cv_pipeline.py  (+ test_api/baseten/cloud_cv/modal)
 ```
 
 ## Setup
@@ -96,16 +114,15 @@ python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 copy .env.example .env
-# edit .env: set BASETEN_API_KEY and META_API_KEY
+# edit .env: BASETEN_API_KEY + META_API_KEY
 # optional: SUPABASE_URL + SUPABASE_KEY for pgvector grounding
 python -m uvicorn main:app --reload --port 8000
 ```
 
 Deps: FastAPI, Uvicorn, Pydantic v2, NumPy, SciPy, OpenCV (headless),
 Pillow, httpx/requests, python-multipart, python-dotenv, Modal, pytest,
-pytest-asyncio, openai, supabase, networkx, pydub.
-
-Optional Modal cloud GPU: run `modal setup`, then `USE_MODAL_CLOUD=true`.
+pytest-asyncio, openai, supabase, networkx, pydub. Optional Modal GPU:
+`modal setup` + `USE_MODAL_CLOUD=true`.
 
 ## Tests
 
@@ -113,6 +130,22 @@ Optional Modal cloud GPU: run `modal setup`, then `USE_MODAL_CLOUD=true`.
 cd backend
 pytest
 ```
+
+## What's next (planned — not built yet)
+
+Headline for the next version: **frontend**. The backend can reason; now
+patients and doctors need to see it:
+
+- **Dosage-card display** in the dashboard (rendered PNG + data), replacing
+  raw JSON for patients.
+- **Triage-question UI**: show `active_triage_question` and accept the
+  follow-up answer back into intake.
+- **History + polish**: past intakes list, verification telemetry /
+  hallucination-risk display, styling pass.
+- Behind the UI: grow the polypharmacy graph beyond 2 rules; build the
+  first labeled eval set + scoring script (first real accuracy %); wire the
+  Modal worker into the orchestrator (or remove it); Dockerfile + CI;
+  reconcile version strings and the `baseten_configured` status field.
 
 ## Notes
 
